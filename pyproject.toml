@@ -1,0 +1,9 @@
+[project]
+name = "ai-document-intelligence-platform"
+version = "0.1.0"
+description = "AI Document Intelligence Platform"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi[standard]>=0.143.0",
+]
+
