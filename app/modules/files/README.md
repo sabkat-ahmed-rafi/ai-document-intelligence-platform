@@ -1,6 +1,6 @@
 # File Management System
 
-This module handles all file operations (upload, retrieve, delete) for the entire application. It does **not** have its own API endpoint. Instead, other modules (users, products, orders, etc.) use `FileService` internally whenever they need to handle files.
+This module handles all file operations (validation, storage, metadata persistence, retrieval, deletion) for the AI Document Intelligence Platform. It does **not** expose its own public API routes. Instead, other business modules (e.g. `documents`, `users`) use `FileService` internally whenever they need to process or store files.
 
 ---
 
@@ -10,72 +10,73 @@ This module handles all file operations (upload, retrieve, delete) for the entir
 - [Architecture Overview](#architecture-overview)
 - [Folder Structure](#folder-structure)
 - [How It Works](#how-it-works)
-- [How to Use in a Module](#how-to-use-in-a-module)
-- [How to Add a New File Category](#how-to-add-a-new-file-category)
-- [How to Add Validation for a New Category](#how-to-add-validation-for-a-new-category)
-- [How to Add a New Owner Type](#how-to-add-a-new-owner-type)
-- [How to Add a New Storage Provider](#how-to-add-a-new-storage-provider)
+- [How to Use in Another Module (e.g., Documents)](#how-to-use-in-another-module-eg-documents)
+- [Reading File Bytes for AI / OCR Pipelines](#reading-file-bytes-for-ai--ocr-pipelines)
 - [File Storage Path Format](#file-storage-path-format)
 - [Configuration](#configuration)
 - [Available Exceptions](#available-exceptions)
+- [FileService Methods Reference](#fileservice-methods-reference)
+- [How to Add a Cloud Storage Provider (e.g. Supabase Storage / S3)](#how-to-add-a-cloud-storage-provider-eg-supabase-storage--s3)
 
 ---
 
 ## What It Can Do
 
-| Method                  | Description                                              |
-| ----------------------- | -------------------------------------------------------- |
-| `upload()`              | Validates, stores the file, and saves metadata to the DB |
-| `get(file_id)`          | Retrieves a file record from DB by its ID                |
-| `get_url(file)`         | Returns the public URL for a file                        |
-| `delete(file_id)`       | Soft-deletes the file (marks as DELETED + removes from storage) |
+| Method | Description |
+| :--- | :--- |
+| `upload(...)` | Validates file type & size, saves bytes to storage, and persists metadata to Supabase DB |
+| `get(file_id)` | Retrieves the `File` model from DB by its ID |
+| `get_url(file)` | Returns the public accessible URL for the file |
+| `to_response(file)` | Converts `File` DB model into a `FileResponse` Pydantic DTO (including public URL) |
+| `delete(file_id)` | Soft-deletes the file (sets status to `DELETED` in DB and unlinks from storage) |
+| `storage.read(storage_key)` | Reads raw `bytes` from storage (essential for AI text extraction, OCR, and embeddings) |
 
 ---
 
 ## Architecture Overview
 
-```
-Other Modules (users, products, orders)
+```text
+Other Modules (e.g., documents, users)
         │
         ▼
-   FileService  ←── uses ──►  StorageProvider (abstract)
-        │                           │
-        ▼                     ┌─────┴──────┐
-  FileRepository              │            │
-        │                   Local       S3 / Cloudinary
-        ▼                  (current)     (future)
-    Database
+   FileService  ─── uses ───►  StorageProvider (abstract interface)
+        │                                  │
+        ▼                          ┌───────┴───────┐
+  FileRepository                   │               │
+        │                        Local      Supabase / S3
+        ▼                      (current)       (future)
+    Database (PostgreSQL / Supabase)
 ```
 
-**Key idea**: `FileService` talks to `StorageProvider` (an abstract class). It does NOT know whether files are saved on local disk, S3, or Cloudinary. To add a new storage, you just create a new class that implements `StorageProvider` — nothing in `FileService` or any other module changes.
+**Key principle**: `FileService` depends solely on the abstract `StorageProvider` interface. It does not care whether files reside on a local volume, Supabase Storage, or AWS S3. Switching storage providers requires only changing configuration or adding an implementation class — zero code changes in `FileService` or business modules.
 
 ---
 
 ## Folder Structure
 
-```
+```text
 app/
 ├── infrastructure/
 │   └── storage/
-│       ├── base.py           # StorageProvider abstract class
-│       ├── local.py          # LocalStorageProvider (current implementation)
-│       ├── factory.py        # get_storage() — picks the right provider from config
-│       ├── types.py          # StoredFile dataclass
-│       ├── exceptions.py     # StorageError, FileNotFound, UploadFailed
+│       ├── base.py           # StorageProvider abstract base class
+│       ├── local.py          # LocalStorageProvider implementation
+│       ├── factory.py        # get_storage() factory picking provider from config
+│       ├── exceptions.py     # StorageFileNotFound, UploadFailed
 │       └── __init__.py
 │
 └── modules/
     └── files/
-        ├── models.py         # File SQLAlchemy model (DB table)
-        ├── service.py        # FileService — the main class other modules use
-        ├── repository.py     # FileRepository — DB operations (create, get, update, delete)
+        ├── models.py         # File SQLAlchemy model (maps to 'files' table)
+        ├── service.py        # FileService — main service used by other modules
+        ├── repository.py     # FileRepository — async database operations
         ├── dependencies.py   # FastAPI dependency injection (get_file_service)
-        ├── validators.py     # FileValidator — validates file type & size per category
-        ├── naming.py         # FileNamer — generates unique filenames (UUID-based)
-        ├── paths.py          # FilePath — generates storage paths
+        ├── validators.py     # FileValidator — validates MIME types and size limits
+        ├── naming.py         # FileNamer — generates unique UUID filenames
+        ├── paths.py          # FilePath — constructs structured storage paths
         ├── enums.py          # FileCategory, OwnerType, FileStatus
-        ├── schemas.py        # FileResponse pydantic model (for API responses)
+        ├── schemas.py        # FileResponse Pydantic DTO
         ├── exceptions.py     # FileNotFound, InvalidFileType, FileTooLarge
+        ├── README.md
         └── __init__.py
 ```
 
@@ -83,494 +84,224 @@ app/
 
 ## How It Works
 
-1. Another module calls `file_service.upload(file=..., owner_type=..., owner_id=..., category=...)`
-2. `FileValidator` checks if the file type and size are allowed for that category
-3. `FileNamer` generates a unique filename (UUID + original extension)
-4. `FilePath` builds the storage path: `{owner_type}/{owner_id}/{category}/{filename}`
-5. `StorageProvider` stores the file bytes on disk (or S3, etc.)
-6. `FileRepository` saves the file metadata to the database
-7. The `File` model record is returned to the calling module
+1. Another module calls:
+   ```python
+   await file_service.upload(
+       file=upload_file,
+       owner_type=OwnerType.DOCUMENT,
+       owner_id="doc_123",
+       category=FileCategory.DOCUMENT,
+   )
+   ```
+2. `FileService` reads file content to obtain actual byte size and content type.
+3. `FileValidator` verifies the MIME type is supported (e.g. PDF, Word, TXT, CSV, images) and within the 50MB limit.
+4. `FileNamer` generates a unique UUID filename (preserving original extension).
+5. `FilePath` constructs the storage path: `{owner_type}/{owner_id}/{category}/{filename}`.
+6. `StorageProvider` writes the raw bytes to storage (e.g. `./uploads/` or cloud bucket).
+7. `FileRepository` inserts the `File` metadata record into the Supabase PostgreSQL database.
+8. The persisted `File` SQLAlchemy instance is returned.
 
 ---
 
-## How to Use in a Module
+## How to Use in Another Module (e.g., Documents)
 
-This is a step-by-step guide for using the file system in a **new module** (e.g., a `products` module).
-
-### Step 1: Import FileService in your module's dependencies
+### Step 1: Link Your Model to `files.id`
 
 ```python
-# app/modules/products/dependencies.py
+# app/modules/documents/models.py
+from sqlalchemy import ForeignKey, String
+from sqlalchemy.orm import Mapped, mapped_column
+from infrastructure.database import Base, TimestampMixin
 
-from fastapi import Depends
-from modules.files.dependencies import get_file_service
-from modules.files.service import FileService
+class Document(TimestampMixin, Base):
+    __tablename__ = "documents"
 
-from .repository import ProductRepository
-from .service import ProductService
+    id: Mapped[str] = mapped_column(primary_key=True)
+    title: Mapped[str] = mapped_column(nullable=False)
+    file_id: Mapped[str] = mapped_column(ForeignKey("files.id"), nullable=False)
+```
 
+### Step 2: Inject `FileService` in Your Route
 
-def get_product_service(
-    product_repo: ProductRepository = Depends(get_product_repository),
+```python
+# app/modules/documents/router.py
+import uuid
+from fastapi import APIRouter, Depends, UploadFile, File
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from infrastructure.database import get_db
+from shared.schemas import ApiResponse
+from modules.files import FileService, get_file_service, FileCategory, OwnerType
+from .models import Document
+
+router = APIRouter(prefix="/documents", tags=["Documents"])
+
+@router.post("/upload", response_model=ApiResponse[dict])
+async def upload_document(
+    title: str,
+    file: UploadFile = File(...),
     file_service: FileService = Depends(get_file_service),
+    db: AsyncSession = Depends(get_db),
 ):
+    document_id = str(uuid.uuid4())
 
-    return ProductService(
-        repository=product_repo,
-        file_service=file_service,
+    # 1. Store physical file & save file record in database
+    file_record = await file_service.upload(
+        file=file,
+        owner_type=OwnerType.DOCUMENT,
+        owner_id=document_id,
+        category=FileCategory.DOCUMENT,
+    )
+
+    # 2. Persist your document referencing the file
+    doc = Document(
+        id=document_id,
+        title=title,
+        file_id=file_record.id,
+    )
+    db.add(doc)
+    await db.commit()
+
+    return ApiResponse(
+        message="Document uploaded successfully",
+        data={
+            "document_id": doc.id,
+            "file": file_service.to_response(file_record).model_dump(),
+        },
     )
 ```
 
-### Step 2: Use FileService in your module's service
+---
+
+## Reading File Bytes for AI / OCR Pipelines
+
+When downstream AI services (e.g. LangChain, LlamaIndex, PyMuPDF, OCR models) need to extract text or embeddings:
 
 ```python
-# app/modules/products/service.py
+# 1. Fetch file record from database
+file_record = await file_service.get(document.file_id)
 
-from fastapi import UploadFile
+# 2. Read bytes directly from storage provider
+raw_bytes: bytes = await file_service.storage.read(file_record.storage_key)
 
-from modules.files.service import FileService
-from modules.files.enums import OwnerType, FileCategory
-
-from .repository import ProductRepository
-
-
-class ProductService:
-
-    def __init__(
-        self,
-        repository: ProductRepository,
-        file_service: FileService,
-    ):
-
-        self.repository = repository
-        self.file_service = file_service
-
-
-    async def create_product(self, data, image: UploadFile):
-
-        product = ...  # save product to DB first
-
-        # Upload the product image
-        if image:
-            file_record = await self.file_service.upload(
-                file=image,
-                owner_type=OwnerType.PRODUCT,
-                owner_id=product.id,
-                category=FileCategory.PRODUCT_IMAGE,
-            )
-
-            # file_record.id     → file ID in the database
-            # file_record.size   → file size in bytes
-
-        return product
-
-
-    async def get_product_image_url(self, file_id: str):
-
-        file = await self.file_service.get(file_id)
-
-        url = self.file_service.get_url(file)
-
-        return url
-
-
-    async def delete_product_image(self, file_id: str):
-
-        await self.file_service.delete(file_id)
+# 3. Process raw bytes with your parser
+extracted_text = await ocr_pipeline.extract_text(raw_bytes)
 ```
-
-### Step 3: Accept file in your API route
-
-```python
-# app/modules/products/api/router.py
-
-from fastapi import APIRouter, UploadFile, File, Depends
-
-from modules.products.service import ProductService
-from modules.products.dependencies import get_product_service
-
-router = APIRouter(prefix="/products", tags=["Products"])
-
-
-@router.post("/")
-async def create_product(
-    image: UploadFile = File(...),
-    service: ProductService = Depends(get_product_service),
-):
-
-    product = await service.create_product(
-        data=...,
-        image=image,
-    )
-
-    return product
-```
-
----
-
-## How to Add a New File Category
-
-**Example**: You want to add a `DOCUMENT` category for PDF uploads.
-
-### Files to change: 1
-
-**`app/modules/files/enums.py`** — Add the new category:
-
-```diff
- class FileCategory(str, Enum):
-
-     AVATAR = "avatar"
-
-     PRODUCT_IMAGE = "product_image"
-
-     INVOICE = "invoice"
-
-     ATTACHMENT = "attachment"
-+
-+    DOCUMENT = "document"
-```
-
-That's it. The upload will work because categories that are NOT in `IMAGE_CATEGORIES` skip image validation (no restriction by default). If you want to add specific validation for documents, see the next section.
-
----
-
-## How to Add Validation for a New Category
-
-**Example**: You want to validate that `DOCUMENT` files are only PDFs and max 10MB.
-
-### Files to change: 1
-
-**`app/modules/files/validators.py`** — Add the new validation:
-
-```diff
- from .enums import FileCategory
- from .exceptions import (
-     InvalidFileType,
-     FileTooLarge
- )
-
-
- IMAGE_TYPES = [
-     "image/png",
-     "image/jpeg",
-     "image/webp"
- ]
-
- MAX_IMAGE_SIZE = 5 * 1024 * 1024  # 5MB
-
- IMAGE_CATEGORIES = {
-     FileCategory.AVATAR,
-     FileCategory.PRODUCT_IMAGE,
- }
-
-+DOCUMENT_TYPES = [
-+    "application/pdf",
-+]
-+
-+MAX_DOCUMENT_SIZE = 10 * 1024 * 1024  # 10MB
-+
-+DOCUMENT_CATEGORIES = {
-+    FileCategory.DOCUMENT,
-+}
-+
-
- class FileValidator:
-
-     def validate(
-         self,
-         *,
-         content_type: str,
-         size: int,
-         category: FileCategory,
-     ):
-
-         if category in IMAGE_CATEGORIES:
-             self._validate_image(content_type, size)
-
-+        if category in DOCUMENT_CATEGORIES:
-+            self._validate_document(content_type, size)
-
-
-     def _validate_image(
-         self,
-         content_type: str,
-         size: int,
-     ):
-
-         if content_type not in IMAGE_TYPES:
-             raise InvalidFileType()
-
-         if size > MAX_IMAGE_SIZE:
-             raise FileTooLarge()
-
-+    def _validate_document(
-+        self,
-+        content_type: str,
-+        size: int,
-+    ):
-+
-+        if content_type not in DOCUMENT_TYPES:
-+            raise InvalidFileType()
-+
-+        if size > MAX_DOCUMENT_SIZE:
-+            raise FileTooLarge()
-```
-
----
-
-## How to Add a New Owner Type
-
-**Example**: You want to add a `STORE` owner type.
-
-### Files to change: 1
-
-**`app/modules/files/enums.py`** — Add the new owner type:
-
-```diff
- class OwnerType(str, Enum):
-
-     USER = "user"
-
-     PRODUCT = "product"
-
-     ORDER = "order"
-+
-+    STORE = "store"
-```
-
-That's it. Storage paths will automatically be generated as `store/{store_id}/{category}/{filename}`.
-
----
-
-## How to Add a New Storage Provider
-
-**Example**: You want to add AWS S3 as a storage option.
-
-### Files to change/add: 3
-
-### 1. Create the provider class
-
-**`app/infrastructure/storage/s3.py`** (new file) — Implement all 5 methods from `StorageProvider`:
-
-```python
-# app/infrastructure/storage/s3.py
-
-from .base import StorageProvider
-from .exceptions import FileNotFound, UploadFailed
-
-
-class S3StorageProvider(StorageProvider):
-
-    def __init__(self, bucket_name: str, region: str):
-        self.bucket_name = bucket_name
-        self.region = region
-        # Initialize your S3 client here
-
-
-    async def upload(
-        self,
-        *,
-        path: str,
-        content: bytes,
-        content_type: str,
-    ) -> str:
-        # Upload to S3 and return the storage key
-        ...
-
-
-    async def delete(self, key: str) -> None:
-        # Delete from S3
-        ...
-
-
-    async def exists(self, key: str) -> bool:
-        # Check if file exists in S3
-        ...
-
-
-    async def read(self, key: str) -> bytes:
-        # Read file from S3
-        ...
-
-
-    def get_url(self, key: str) -> str:
-        # Return the S3 URL
-        return f"https://{self.bucket_name}.s3.{self.region}.amazonaws.com/{key}"
-```
-
-### 2. Register it in the factory
-
-**`app/infrastructure/storage/factory.py`** — Add an `elif` for the new provider:
-
-```diff
- from core.config import settings
- from .base import StorageProvider
- from .local import LocalStorageProvider
-+from .s3 import S3StorageProvider
-
-
- def get_storage() -> StorageProvider:
-
-     provider = settings.STORAGE_PROVIDER
-
-     if provider == "local":
-         return LocalStorageProvider(settings.STORAGE_PATH)
-
-+    if provider == "s3":
-+        return S3StorageProvider(
-+            bucket_name=settings.S3_BUCKET_NAME,
-+            region=settings.S3_REGION,
-+        )
-+
-     raise ValueError(f"Unknown storage provider: {provider}")
-```
-
-### 3. Add config settings
-
-**`app/core/config.py`** — Add the new settings:
-
-```diff
- class Settings(BaseSettings):
-     DATABASE_URL: str
-
-     STORAGE_PROVIDER: str = "local"
-     STORAGE_PATH: str = "./uploads"
-
-+    S3_BUCKET_NAME: str = ""
-+    S3_REGION: str = ""
-```
-
-**`.env`** — Switch to S3:
-
-```env
-STORAGE_PROVIDER=s3
-S3_BUCKET_NAME=my-app-files
-S3_REGION=ap-southeast-1
-```
-
-### What does NOT change
-
-- `FileService` — no changes
-- `FileRepository` — no changes
-- `validators.py` — no changes
-- `naming.py` — no changes
-- `paths.py` — no changes
-- `dependencies.py` — no changes
-- Any module using `FileService` — no changes
 
 ---
 
 ## File Storage Path Format
 
-Files are stored with this path structure:
+Files are saved following this path layout:
 
-```
+```text
 {owner_type}/{owner_id}/{category}/{uuid_filename}
 ```
 
 **Examples:**
 
-| Owner Type | Owner ID | Category        | Generated Path                                        |
-| ---------- | -------- | --------------- | ----------------------------------------------------- |
-| user       | abc123   | avatar          | `user/abc123/avatar/550e8400-e29b-41d4-a716.png`      |
-| product    | prod456  | product_image   | `product/prod456/product_image/6fa459ea-ee8a-3ca4.jpg` |
-| order      | ord789   | invoice         | `order/ord789/invoice/f47ac10b-58cc-4372.pdf`          |
+| Owner Type | Owner ID | Category | Generated Storage Key |
+| :--- | :--- | :--- | :--- |
+| `document` | `doc_123` | `document` | `document/doc_123/document/550e8400-e29b-41d4-a716-446655440000.pdf` |
+| `user` | `usr_456` | `document` | `user/usr_456/document/6fa459ea-ee8a-3ca4-b521-884812349000.docx` |
 
-For local storage, these paths are relative to the `STORAGE_PATH` directory (default: `./uploads`).
+For local storage, paths are relative to `STORAGE_PATH` (default: `./uploads`).
 
 ---
 
 ## Configuration
 
-These settings are in `app/core/config.py` and read from `.env`:
+Settings are declared in [`app/core/config.py`](file:///D:/Code/Projects/ai-document-intelligence-platform/app/core/config.py) and read from `.env`:
 
-| Setting            | Default      | Description                              |
-| ------------------ | ------------ | ---------------------------------------- |
-| `STORAGE_PROVIDER` | `"local"`    | Which storage backend to use             |
-| `STORAGE_PATH`     | `"./uploads"` | Root directory for local file storage    |
+| Setting | Default | Description |
+| :--- | :--- | :--- |
+| `STORAGE_PROVIDER` | `"local"` | Storage driver (`"local"`, or future `"supabase"` / `"s3"`) |
+| `STORAGE_PATH` | `"./uploads"` | Base directory for local file storage |
 
 ---
 
 ## Available Exceptions
 
-### File module exceptions (`app/modules/files/exceptions.py`)
+### Files Module Exceptions ([`app/modules/files/exceptions.py`](file:///D:/Code/Projects/ai-document-intelligence-platform/app/modules/files/exceptions.py))
 
-| Exception         | When it's raised                                    |
-| ----------------- | --------------------------------------------------- |
-| `FileNotFound`    | `get()` or `delete()` called with a non-existent ID |
-| `InvalidFileType` | File mime type is not allowed for that category      |
-| `FileTooLarge`    | File size exceeds the limit for that category        |
+| Exception | HTTP Status | When Raised |
+| :--- | :--- | :--- |
+| `FileNotFound` | 404 | `get()` or `delete()` called with non-existent file ID |
+| `InvalidFileType` | 422 | File MIME type not in allowed document types list |
+| `FileTooLarge` | 422 | File size exceeds 50MB limit |
 
-### Storage exceptions (`app/infrastructure/storage/exceptions.py`)
+### Storage Exceptions ([`app/infrastructure/storage/exceptions.py`](file:///D:/Code/Projects/ai-document-intelligence-platform/app/infrastructure/storage/exceptions.py))
 
-| Exception      | When it's raised                      |
-| -------------- | ------------------------------------- |
-| `StorageError` | Base exception for all storage errors |
-| `FileNotFound` | Storage provider can't find the file  |
-| `UploadFailed` | Storage provider failed to save       |
+| Exception | HTTP Status | When Raised |
+| :--- | :--- | :--- |
+| `StorageFileNotFound` | 404 | Storage provider cannot find file on disk / bucket |
+| `UploadFailed` | 500 | Storage provider encountered I/O write error |
 
 ---
 
 ## FileService Methods Reference
 
 ### `upload()`
-
 ```python
 file_record = await file_service.upload(
-    file=upload_file,          # FastAPI UploadFile object
-    owner_type=OwnerType.USER, # Who owns this file
-    owner_id="user_123",       # ID of the owner
-    category=FileCategory.AVATAR,  # What type of file
+    file=upload_file,              # FastAPI UploadFile object
+    owner_type=OwnerType.DOCUMENT, # Who/what owns this file
+    owner_id="doc_123",            # Owner identifier
+    category=FileCategory.DOCUMENT,# File category
 )
-
-# Returns: File model instance with all metadata
-# file_record.id           → unique file ID
-# file_record.original_name → original filename
-# file_record.storage_key  → internal storage path
-# file_record.mime_type    → e.g. "image/png"
-# file_record.size         → size in bytes
-# file_record.created_at   → when it was uploaded
+# Returns: File SQLAlchemy model
 ```
 
 ### `get()`
-
 ```python
-file = await file_service.get("file_id_here")
-
-# Returns: File model instance
-# Raises: FileNotFound if ID doesn't exist
+file_record = await file_service.get(file_id)
+# Returns: File SQLAlchemy model (raises FileNotFound if missing)
 ```
 
 ### `get_url()`
-
 ```python
-file = await file_service.get("file_id_here")
+url = file_service.get_url(file_record)
+# Returns: "/uploads/document/doc_123/document/<uuid>.pdf"
+```
 
-url = file_service.get_url(file)
-
-# Returns: URL string like "/uploads/user/123/avatar/abc.png"
-# Note: Takes a File object, not a file ID
+### `to_response()`
+```python
+response_dto = file_service.to_response(file_record)
+# Returns: FileResponse schema with id, original_name, url, mime_type, size, created_at
 ```
 
 ### `delete()`
-
 ```python
-await file_service.delete("file_id_here")
-
-# Soft-deletes: sets status to DELETED and removes from storage
-# Raises: FileNotFound if ID doesn't exist
+await file_service.delete(file_id)
+# Unlinks physical file from storage and marks status as DELETED in database
 ```
 
 ---
 
-## Quick Reference — What to Change for Each Task
+## How to Add a Cloud Storage Provider (e.g. Supabase Storage / S3)
 
-| Task                         | Files to Change                                                   |
-| ---------------------------- | ----------------------------------------------------------------- |
-| Use file system in a new module | Your module's `dependencies.py` + `service.py` + `api/router.py` |
-| Add a new file category      | `enums.py` (add to `FileCategory`)                               |
-| Add validation for a category | `validators.py` (add types, size limit, and validation method)   |
-| Add a new owner type         | `enums.py` (add to `OwnerType`)                                  |
-| Add a new storage provider   | Create new provider file + `factory.py` + `config.py` + `.env`   |
-| Change file size limits      | `validators.py` (edit `MAX_IMAGE_SIZE` or add new constants)      |
-| Change allowed file types    | `validators.py` (edit `IMAGE_TYPES` or add new type lists)        |
+To add a new storage driver:
+
+1. Create a new provider class implementing `StorageProvider`:
+   ```python
+   # app/infrastructure/storage/supabase.py
+   from .base import StorageProvider
+
+   class SupabaseStorageProvider(StorageProvider):
+       async def upload(self, *, path: str, content: bytes, content_type: str) -> str:
+           ...
+       async def delete(self, key: str) -> None:
+           ...
+       async def exists(self, key: str) -> bool:
+           ...
+       async def read(self, key: str) -> bytes:
+           ...
+       def get_url(self, key: str) -> str:
+           ...
+   ```
+2. Update [`app/infrastructure/storage/factory.py`](file:///D:/Code/Projects/ai-document-intelligence-platform/app/infrastructure/storage/factory.py):
+   ```python
+   if provider == "supabase":
+       return SupabaseStorageProvider(...)
+   ```
+3. Update `STORAGE_PROVIDER=supabase` in `.env`. Zero changes needed in `FileService` or business modules.
