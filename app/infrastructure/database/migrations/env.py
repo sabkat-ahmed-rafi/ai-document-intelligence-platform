@@ -16,6 +16,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[4]))
 from core.config import settings
 from infrastructure.database.base import Base
 
+# Import models so Alembic registers them for autogenerate
+from modules.files.models import File  # noqa: F401
+
 # Alembic Config object
 config = context.config
 
