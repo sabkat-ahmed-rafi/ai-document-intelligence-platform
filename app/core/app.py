@@ -7,6 +7,7 @@ from core.config import settings
 from core.exceptions import register_exception_handler
 from core.lifespan import lifespan
 from infrastructure.database.session import engine
+from modules.auth import auth_router
 from shared.schemas import ApiResponse
 
 
@@ -24,7 +25,10 @@ def create_app() -> FastAPI:
         upload_dir.mkdir(parents=True, exist_ok=True)
         app.mount("/uploads", StaticFiles(directory=str(upload_dir)), name="uploads")
 
-    @app.get("/health", response_model=ApiResponse[dict])
+    # Mount authentication routes
+    app.include_router(auth_router, prefix="/auth", tags=["Authentication"])
+
+    @app.get("/health", response_model=ApiResponse[dict], tags=["System"])
     async def health_check():
         async with engine.begin() as conn:
             await conn.execute(text("SELECT 1"))

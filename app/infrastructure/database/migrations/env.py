@@ -18,6 +18,9 @@ from infrastructure.database.base import Base
 
 # Import models so Alembic registers them for autogenerate
 from modules.files.models import File  # noqa: F401
+from modules.users.model import Users  # noqa: F401
+from modules.auth.models.refresh_token import RefreshToken  # noqa: F401
+from modules.auth.models.password_reset_code import PasswordResetCode  # noqa: F401
 
 # Alembic Config object
 config = context.config
