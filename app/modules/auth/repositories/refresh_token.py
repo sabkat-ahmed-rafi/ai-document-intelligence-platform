@@ -67,3 +67,13 @@ class RefreshTokenRepository:
         result = await self.session.execute(stmt)
         await self.session.commit()
         return result.rowcount
+
+    async def delete_expired_for_user(self, user_id: str, now: datetime) -> int:
+        """Delete all expired refresh tokens for a specific user."""
+        stmt = delete(RefreshToken).where(
+            RefreshToken.user_id == user_id,
+            RefreshToken.expires_at <= now,
+        )
+        result = await self.session.execute(stmt)
+        await self.session.commit()
+        return result.rowcount

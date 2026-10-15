@@ -43,6 +43,10 @@ class SessionService:
         )
 
     async def _create_token(self, user_id: str) -> Token:
+        now = datetime.now(timezone.utc)
+        # Clean up expired tokens for this user on login
+        await self.refresh_token_repository.delete_expired_for_user(user_id, now)
+
         refresh_token, token_id, expires_at = create_refresh_token(user_id)
         token_record = RefreshToken(
             id=token_id,
@@ -66,11 +70,15 @@ class SessionService:
         if not user.is_active:
             raise InactiveUser()
 
+        now = datetime.now(timezone.utc)
+        # Clean up any expired tokens for this user on refresh
+        await self.refresh_token_repository.delete_expired_for_user(user.id, now)
+
         is_valid = await self.refresh_token_repository.is_valid(
             token_id=payload["jti"],
             user_id=user.id,
             token_hash=hash_refresh_token(token),
-            now=datetime.now(timezone.utc),
+            now=now,
         )
         if not is_valid:
             raise InvalidCredentials("Invalid or expired refresh token")
