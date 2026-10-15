@@ -2,29 +2,25 @@ from core.config import settings
 
 from .client import EmailClient
 from .exceptions import EmailConfigurationError
-from .providers import ResendEmailClient, ConsoleEmailClient
+from .providers import GoogleSMTPEmailClient
 from .service import EmailService
 
 
 def get_email_client() -> EmailClient:
-    provider = settings.EMAIL_PROVIDER.lower()
-
-    if provider == "resend":
-        if not settings.RESEND_API_KEY:
-            raise EmailConfigurationError(
-                "RESEND_API_KEY is not configured in settings or .env. "
-                "Provide your Resend API key or set EMAIL_PROVIDER=console for local testing."
-            )
-        return ResendEmailClient(
-            api_key=settings.RESEND_API_KEY,
-            sender=settings.EMAIL_FROM,
+    if not settings.SMTP_USER or not settings.SMTP_PASSWORD:
+        raise EmailConfigurationError(
+            "Google SMTP is not configured. "
+            "Please provide SMTP_USER and SMTP_PASSWORD in your .env file."
         )
 
-    if provider in ("console", "local", "mock"):
-        return ConsoleEmailClient(sender=settings.EMAIL_FROM)
-
-    raise EmailConfigurationError(
-        f"Unsupported email provider: '{settings.EMAIL_PROVIDER}'. Supported: 'resend', 'console'"
+    sender = settings.EMAIL_FROM or settings.SMTP_USER
+    return GoogleSMTPEmailClient(
+        host=settings.SMTP_HOST,
+        port=settings.SMTP_PORT,
+        username=settings.SMTP_USER,
+        password=settings.SMTP_PASSWORD,
+        sender=sender,
+        use_tls=settings.SMTP_USE_TLS,
     )
 
 

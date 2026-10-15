@@ -18,10 +18,13 @@ class Settings(BaseSettings):
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
     API_KEY: str = "test-api-key"
 
-    # Email configuration
-    EMAIL_PROVIDER: str = "resend"
-    RESEND_API_KEY: str = ""
-    EMAIL_FROM: str = "onboarding@resend.dev"
+    # Email configuration (Google SMTP)
+    SMTP_HOST: str = "smtp.gmail.com"
+    SMTP_PORT: int = 587
+    SMTP_USER: str = ""
+    SMTP_PASSWORD: str = ""
+    SMTP_USE_TLS: bool = True
+    EMAIL_FROM: str = ""
 
     model_config = SettingsConfigDict(
         env_file=".env",

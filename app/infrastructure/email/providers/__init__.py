@@ -1,7 +1,5 @@
-from .resend import ResendEmailClient
-from .console import ConsoleEmailClient
+from .smtp import GoogleSMTPEmailClient
 
 __all__ = [
-    "ResendEmailClient",
-    "ConsoleEmailClient",
+    "GoogleSMTPEmailClient",
 ]
