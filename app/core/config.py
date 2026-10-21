@@ -7,8 +7,16 @@ class Settings(BaseSettings):
     DEBUG: bool = False
 
     # Storage configuration
-    STORAGE_PROVIDER: str = "local"
+    STORAGE_PROVIDER: str = "supabase"  # "supabase", "s3", or "local"
     STORAGE_PATH: str = "./uploads"
+
+    # Supabase Storage configuration
+    SUPABASE_URL: str = ""
+    SUPABASE_KEY: str = ""
+    SUPABASE_STORAGE_BUCKET: str = ""
+    SUPABASE_SIGNED_URL_EXPIRE_SECONDS: int = 3600
+    SUPABASE_BUCKET_PUBLIC: bool = False
+    MAX_FILE_SIZE_MB: int = 50
 
     # Authentication & JWT configuration
     ACCESS_TOKEN_SECRET: str = "supersecret_access_token_key_change_in_production"

@@ -15,3 +15,12 @@ class UploadFailed(AppException, OSError):
             error_code=ErrorCode.INTERNAL_SERVER_ERROR,
             status_code=500,
         )
+
+
+class StorageConfigurationError(AppException):
+    def __init__(self, message: str = "Storage provider is not properly configured"):
+        super().__init__(
+            message=message,
+            error_code=ErrorCode.INTERNAL_SERVER_ERROR,
+            status_code=500,
+        )
