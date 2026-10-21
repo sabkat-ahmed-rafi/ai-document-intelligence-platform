@@ -27,6 +27,11 @@
       "type": "string"
     },
     {
+      "key": "collection_id",
+      "value": "",
+      "type": "string"
+    },
+    {
       "key": "document_id",
       "value": "",
       "type": "string"
@@ -384,19 +389,219 @@
       ]
     },
     {
-      "name": "Documents",
+      "name": "Collections",
       "item": [
         {
-          "name": "1. Upload Document (HTTP 202)",
+          "name": "1. Create Collection",
           "event": [
             {
               "listen": "test",
               "script": {
                 "exec": [
                   "var res = pm.response.json();",
-                  "if (res.data && res.data.document_id) {",
-                  "    pm.collectionVariables.set('document_id', res.data.document_id);",
-                  "    console.log('Saved document_id to collection variables:', res.data.document_id);",
+                  "if (res.data && res.data.id) {",
+                  "    pm.collectionVariables.set('collection_id', res.data.id);",
+                  "    console.log('Saved collection_id:', res.data.id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Financial Reports 2026\",\n  \"description\": \"Quarterly earnings, audit files, and tax disclosures\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/collections",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "collections"
+              ]
+            },
+            "description": "Creates a new collection (smart folder / knowledge base) to organize documents."
+          },
+          "response": []
+        },
+        {
+          "name": "2. List Collections",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/collections?limit=50&offset=0",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "collections"
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "50"
+                },
+                {
+                  "key": "offset",
+                  "value": "0"
+                }
+              ]
+            },
+            "description": "Lists all collections owned by the user, including document counts."
+          },
+          "response": []
+        },
+        {
+          "name": "3. Get Collection Details",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/collections/{{collection_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "collections",
+                "{{collection_id}}"
+              ]
+            },
+            "description": "Retrieves metadata and document count for a specific collection."
+          },
+          "response": []
+        },
+        {
+          "name": "4. Update Collection",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Financial Reports 2026 (Updated)\",\n  \"description\": \"Updated description for quarterly reports\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/collections/{{collection_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "collections",
+                "{{collection_id}}"
+              ]
+            },
+            "description": "Updates the name or description of a collection."
+          },
+          "response": []
+        },
+        {
+          "name": "5. Delete Collection (Cascade)",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/collections/{{collection_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "collections",
+                "{{collection_id}}"
+              ]
+            },
+            "description": "Deletes a collection and CASCADE deletes all documents associated with it."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Documents",
+      "item": [
+        {
+          "name": "1. Upload Document(s) (HTTP 202)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var res = pm.response.json();",
+                  "if (res.data) {",
+                  "    if (res.data.collection_id) {",
+                  "        pm.collectionVariables.set('collection_id', res.data.collection_id);",
+                  "        console.log('Saved collection_id:', res.data.collection_id);",
+                  "    }",
+                  "    if (res.data.document_id) {",
+                  "        pm.collectionVariables.set('document_id', res.data.document_id);",
+                  "        console.log('Saved document_id:', res.data.document_id);",
+                  "    } else if (res.data.uploaded && res.data.uploaded.length > 0) {",
+                  "        pm.collectionVariables.set('document_id', res.data.uploaded[0].document_id);",
+                  "        console.log('Saved document_id from batch:', res.data.uploaded[0].document_id);",
+                  "    }",
                   "}"
                 ],
                 "type": "text/javascript"
@@ -420,14 +625,34 @@
               "mode": "formdata",
               "formdata": [
                 {
+                  "key": "files",
+                  "type": "file",
+                  "src": "",
+                  "description": "Select one or multiple files at once (PDF, DOCX, TXT, PNG, JPG, etc., up to 50MB each)"
+                },
+                {
                   "key": "file",
                   "type": "file",
-                  "src": ""
+                  "src": "",
+                  "description": "Single file upload fallback"
+                },
+                {
+                  "key": "collection_id",
+                  "value": "{{collection_id}}",
+                  "type": "text",
+                  "description": "Optional UUID of an existing collection to group these documents into"
+                },
+                {
+                  "key": "collection_name",
+                  "value": "Financial Reports 2026",
+                  "type": "text",
+                  "description": "Optional collection name (will auto-create collection if collection_id is not provided)"
                 },
                 {
                   "key": "title",
                   "value": "Quarterly Financials Report",
-                  "type": "text"
+                  "type": "text",
+                  "description": "Optional custom title (applied when uploading single document)"
                 }
               ]
             },
@@ -441,7 +666,7 @@
                 "upload"
               ]
             },
-            "description": "Accepts a PDF, Word document (.docx, .doc), Text (.txt, .md, .csv), or Image (.png, .jpg, .jpeg, .webp, .tiff, .bmp) up to 50MB. Uploads to Amazon S3 and immediately returns HTTP 202 Accepted with document_id and pending status."
+            "description": "Uploads one or multiple documents/images (PDF, DOCX, TXT, MD, PNG, JPG, WEBP, TIFF, BMP, up to 50MB each) into Supabase Storage under a collection. Returns HTTP 202 Accepted."
           },
           "response": []
         },
@@ -470,7 +695,7 @@
                 "{{document_id}}"
               ]
             },
-            "description": "Retrieves the processing status, metadata, and presigned S3 download URL for a specific document."
+            "description": "Retrieves document processing status, metadata, collection_id, and presigned/signed download URL from Supabase Storage."
           },
           "response": []
         },
@@ -490,7 +715,7 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{base_url}}/documents?limit=50&offset=0",
+              "raw": "{{base_url}}/documents?collection_id={{collection_id}}&limit=50&offset=0",
               "host": [
                 "{{base_url}}"
               ],
@@ -498,6 +723,11 @@
                 "documents"
               ],
               "query": [
+                {
+                  "key": "collection_id",
+                  "value": "{{collection_id}}",
+                  "description": "Optional filter by collection UUID"
+                },
                 {
                   "key": "limit",
                   "value": "50"
@@ -508,7 +738,7 @@
                 }
               ]
             },
-            "description": "Lists all active documents uploaded by the authenticated user with pagination."
+            "description": "Lists all active documents uploaded by the authenticated user, optionally filtered by collection UUID."
           },
           "response": []
         }

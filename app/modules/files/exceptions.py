@@ -11,6 +11,11 @@ class FileTooLarge(ValidationException):
         super().__init__(message=message)
 
 
+class FileEmpty(ValidationException):
+    def __init__(self, message: str = "File cannot be empty"):
+        super().__init__(message=message)
+
+
 class FileNotFound(NotFoundException):
     def __init__(self, message: str = "File not found"):
         super().__init__(message=message)

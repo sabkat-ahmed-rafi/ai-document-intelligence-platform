@@ -8,6 +8,7 @@ from core.exceptions import register_exception_handler
 from core.lifespan import lifespan
 from infrastructure.database.session import engine
 from modules.auth import auth_router
+from modules.collections import collections_router
 from modules.documents import documents_router
 from shared.schemas import ApiResponse
 
@@ -28,6 +29,7 @@ def create_app() -> FastAPI:
 
     # Mount routes
     app.include_router(auth_router, prefix="/auth", tags=["Authentication"])
+    app.include_router(collections_router, prefix="/collections", tags=["Collections"])
     app.include_router(documents_router, prefix="/documents", tags=["Documents"])
 
     @app.get("/health", response_model=ApiResponse[dict], tags=["System"])

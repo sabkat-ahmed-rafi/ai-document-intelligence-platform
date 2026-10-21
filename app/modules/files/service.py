@@ -1,17 +1,17 @@
 import uuid
 from fastapi import UploadFile
 
-from infrastructure.storage import StorageProvider
 from core.config import settings
+from infrastructure.storage import StorageProvider
 
-from .models import File
-from .schemas import FileResponse
-from .repository import FileRepository
-from .validators import FileValidator
-from .naming import FileNamer
-from .enums import FileCategory, OwnerType, FileStatus
-from .paths import FilePath
+from .enums import FileCategory, FileStatus, OwnerType
 from .exceptions import FileNotFound
+from .models import File
+from .naming import FileNamer
+from .paths import FilePath
+from .repository import FileRepository
+from .schemas import FileResponse
+from .validators import FileValidator
 
 
 class FileService:
@@ -37,17 +37,21 @@ class FileService:
         owner_type: OwnerType,
         owner_id: str,
         category: FileCategory,
+        content: bytes | None = None,
+        resolved_content_type: str | None = None,
     ) -> File:
-        # Read file content first so we have the guaranteed actual byte size
-        content = await file.read()
+        # Use pre-read content or read file content
+        if content is None:
+            content = await file.read()
         file_size = len(content)
-        content_type = file.content_type or "application/octet-stream"
+        raw_content_type = resolved_content_type or file.content_type or "application/octet-stream"
 
-        # Validate based on category and actual size
-        self.validator.validate(
-            content_type=content_type,
+        # Validate based on category, actual size, and filename
+        content_type = self.validator.validate(
+            content_type=raw_content_type,
             size=file_size,
             category=category,
+            filename=file.filename,
         )
 
         # Safely extract extension and generate unique filename

@@ -33,6 +33,7 @@ class DocumentRepository:
     async def list_for_user(
         self,
         user_id: str,
+        collection_id: str | None = None,
         limit: int = 50,
         offset: int = 0,
     ) -> tuple[list[Document], int]:
@@ -41,6 +42,9 @@ class DocumentRepository:
             Document.user_id == user_id,
             Document.deleted_at.is_(None),
         )
+        if collection_id:
+            count_stmt = count_stmt.where(Document.collection_id == collection_id)
+
         total = await self.session.scalar(count_stmt) or 0
 
         # Query records
@@ -50,10 +54,11 @@ class DocumentRepository:
                 Document.user_id == user_id,
                 Document.deleted_at.is_(None),
             )
-            .order_by(Document.created_at.desc())
-            .limit(limit)
-            .offset(offset)
         )
+        if collection_id:
+            stmt = stmt.where(Document.collection_id == collection_id)
+
+        stmt = stmt.order_by(Document.created_at.desc()).limit(limit).offset(offset)
         result = await self.session.execute(stmt)
         documents = list(result.scalars().all())
 

@@ -13,7 +13,7 @@ class Settings(BaseSettings):
     # Supabase Storage configuration
     SUPABASE_URL: str = ""
     SUPABASE_KEY: str = ""
-    SUPABASE_STORAGE_BUCKET: str = ""
+    SUPABASE_STORAGE_BUCKET: str = "documents"
     SUPABASE_SIGNED_URL_EXPIRE_SECONDS: int = 3600
     SUPABASE_BUCKET_PUBLIC: bool = False
     MAX_FILE_SIZE_MB: int = 50

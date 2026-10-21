@@ -16,6 +16,12 @@ class Document(TimestampMixin, SoftDeleteMixin, Base):
         nullable=False,
     )
 
+    collection_id: Mapped[str | None] = mapped_column(
+        ForeignKey("collections.id", ondelete="CASCADE"),
+        index=True,
+        nullable=True,
+    )
+
     file_id: Mapped[str] = mapped_column(
         ForeignKey("files.id", ondelete="CASCADE"),
         index=True,

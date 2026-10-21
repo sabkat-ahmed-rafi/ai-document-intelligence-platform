@@ -1,14 +1,15 @@
 from fastapi import APIRouter, Depends, File, Form, Query, UploadFile, status
 
+from core.exceptions import ValidationException
 from modules.auth.dependencies import get_current_active_user
 from modules.users.model import Users
 from shared.schemas import ApiResponse
 
 from .dependencies import get_document_service
 from .schemas import (
+    DocumentBatchUploadResponse,
     DocumentDetailResponse,
     DocumentListResponse,
-    DocumentUploadResponse,
 )
 from .service import DocumentService
 
@@ -17,27 +18,63 @@ router = APIRouter()
 
 @router.post(
     "/upload",
-    response_model=ApiResponse[DocumentUploadResponse],
+    response_model=ApiResponse[DocumentBatchUploadResponse],
     status_code=status.HTTP_202_ACCEPTED,
-    summary="Upload a document for processing",
+    summary="Upload one or multiple documents for processing",
 )
-async def upload_document(
-    file: UploadFile = File(..., description="Document or image file to upload (max 50MB)"),
-    title: str | None = Form(None, description="Optional custom document title"),
+async def upload_documents(
+    files: list[UploadFile] = File(
+        default=[],
+        description="One or multiple document or image files to upload (max 50MB each)",
+    ),
+    file: UploadFile | None = File(
+        default=None,
+        description="Single document or image file fallback",
+    ),
+    title: str | None = Form(
+        None,
+        description="Optional custom title (applied when uploading a single document)",
+    ),
+    collection_id: str | None = Form(
+        None,
+        description="Optional UUID of an existing collection to group these documents into",
+    ),
+    collection_name: str | None = Form(
+        None,
+        description="Optional collection name (will auto-create collection if collection_id is not provided)",
+    ),
     current_user: Users = Depends(get_current_active_user),
     document_service: DocumentService = Depends(get_document_service),
 ):
     """
-    Accepts a document or image file, securely stores it in Amazon S3,
-    records its initial state as 'pending', and immediately returns a 202 Accepted response.
+    Accepts one or multiple documents/images. Securely uploads each file to cloud storage,
+    links them to a collection (if specified), records initial state as 'pending' in PostgreSQL,
+    and returns HTTP 202 Accepted.
     """
-    result = await document_service.upload_document(
-        file=file,
+    upload_list = list(files)
+    if file is not None and file not in upload_list:
+        upload_list.append(file)
+
+    if not upload_list:
+        raise ValidationException("At least one document or image file must be provided")
+
+    result = await document_service.upload_documents(
+        files=upload_list,
         user_id=current_user.id,
         title=title,
+        collection_id=collection_id,
+        collection_name=collection_name,
     )
+
+    count = result.total_uploaded
+    msg = f"{count} document{'s' if count != 1 else ''} accepted for processing"
+    if result.collection_id:
+        msg += " into collection"
+    if result.total_failed > 0:
+        msg += f" ({result.total_failed} file{'s' if result.total_failed != 1 else ''} failed)"
+
     return ApiResponse(
-        message="Document accepted for processing",
+        message=msg,
         data=result,
     )
 
@@ -52,7 +89,7 @@ async def get_document(
     current_user: Users = Depends(get_current_active_user),
     document_service: DocumentService = Depends(get_document_service),
 ):
-    """Retrieves document processing status, metadata, and presigned download URL."""
+    """Retrieves document processing status, metadata, collection_id, and presigned/signed download URL."""
     result = await document_service.get_document(
         document_id=document_id,
         user_id=current_user.id,
@@ -69,14 +106,16 @@ async def get_document(
     summary="List all documents for the current user",
 )
 async def list_documents(
+    collection_id: str | None = Query(None, description="Optional filter by collection UUID"),
     limit: int = Query(50, ge=1, le=100),
     offset: int = Query(0, ge=0),
     current_user: Users = Depends(get_current_active_user),
     document_service: DocumentService = Depends(get_document_service),
 ):
-    """Lists all active documents belonging to the authenticated user."""
+    """Lists all active documents belonging to the user, optionally filtered by collection."""
     result = await document_service.list_documents(
         user_id=current_user.id,
+        collection_id=collection_id,
         limit=limit,
         offset=offset,
     )
