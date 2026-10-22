@@ -1,7 +1,16 @@
-from fastapi import APIRouter, Depends, File, Form, Query, UploadFile, status
+from fastapi import (
+    APIRouter,
+    Depends,
+    File,
+    Form,
+    Query,
+    UploadFile,
+    status,
+)
 
 from core.exceptions import ValidationException
 from modules.auth.dependencies import get_current_active_user
+from modules.processing.tasks import enqueue_document_processing
 from modules.users.model import Users
 from shared.schemas import ApiResponse
 
@@ -49,7 +58,8 @@ async def upload_documents(
     """
     Accepts one or multiple documents/images. Securely uploads each file to cloud storage,
     links them to a collection (if specified), records initial state as 'pending' in PostgreSQL,
-    and returns HTTP 202 Accepted.
+    enqueues distributed Celery AI processing & pgvector indexing in the background,
+    and returns HTTP 202 Accepted immediately.
     """
     upload_list = list(files)
     if file is not None and file not in upload_list:
@@ -65,6 +75,13 @@ async def upload_documents(
         collection_id=collection_id,
         collection_name=collection_name,
     )
+
+    # Enqueue automatic distributed AI processing via Celery
+    for uploaded_doc in result.uploaded:
+        enqueue_document_processing(
+            document_id=uploaded_doc.document_id,
+            user_id=current_user.id,
+        )
 
     count = result.total_uploaded
     msg = f"{count} document{'s' if count != 1 else ''} accepted for processing"

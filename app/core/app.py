@@ -10,6 +10,7 @@ from infrastructure.database.session import engine
 from modules.auth import auth_router
 from modules.collections import collections_router
 from modules.documents import documents_router
+from modules.processing import processing_router
 from shared.schemas import ApiResponse
 
 
@@ -31,6 +32,7 @@ def create_app() -> FastAPI:
     app.include_router(auth_router, prefix="/auth", tags=["Authentication"])
     app.include_router(collections_router, prefix="/collections", tags=["Collections"])
     app.include_router(documents_router, prefix="/documents", tags=["Documents"])
+    app.include_router(processing_router, prefix="/documents", tags=["AI Processing & Vector Search"])
 
     @app.get("/health", response_model=ApiResponse[dict], tags=["System"])
     async def health_check():

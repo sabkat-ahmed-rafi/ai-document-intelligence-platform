@@ -34,6 +34,18 @@ class Settings(BaseSettings):
     SMTP_USE_TLS: bool = True
     EMAIL_FROM: str = ""
 
+    # AI Processing, Chunking & Embedding Configuration
+    EMBEDDING_PROVIDER: str = "fastembed"  # "fastembed", "openai", "gemini"
+    EMBEDDING_MODEL: str = "BAAI/bge-small-en-v1.5"
+    EMBEDDING_DIMENSION: int = 384
+    CHUNK_SIZE: int = 1000
+    CHUNK_OVERLAP: int = 150
+
+    # Celery & Distributed Task Queue Configuration
+    CELERY_BROKER_URL: str = "redis://localhost:6379/0"
+    CELERY_RESULT_BACKEND: str = "redis://localhost:6379/0"
+    CELERY_TASK_ALWAYS_EAGER: bool = False
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

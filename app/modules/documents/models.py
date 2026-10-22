@@ -63,3 +63,6 @@ class Document(TimestampMixin, SoftDeleteMixin, Base):
         nullable=True,
         default=None,
     )
+
+    # Relationships
+    chunks = relationship("DocumentChunk", back_populates="document", cascade="all, delete-orphan")

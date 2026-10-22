@@ -23,6 +23,7 @@ from modules.auth.models.refresh_token import RefreshToken  # noqa: F401
 from modules.auth.models.password_reset_code import PasswordResetCode  # noqa: F401
 from modules.documents.models import Document  # noqa: F401
 from modules.collections.models import Collection  # noqa: F401
+from modules.processing.models import DocumentChunk  # noqa: F401
 
 # Alembic Config object
 config = context.config

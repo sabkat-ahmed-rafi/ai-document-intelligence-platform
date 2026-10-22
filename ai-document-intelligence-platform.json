@@ -743,6 +743,126 @@
           "response": []
         }
       ]
+    },
+    {
+      "name": "AI Processing & Vector Search",
+      "item": [
+        {
+          "name": "1. Trigger / Re-process Document",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/documents/{{document_id}}/process?run_in_background=true",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "documents",
+                "{{document_id}}",
+                "process"
+              ],
+              "query": [
+                {
+                  "key": "run_in_background",
+                  "value": "true",
+                  "description": "Run asynchronously in background (true) or wait for completion (false)"
+                }
+              ]
+            },
+            "description": "Triggers or re-triggers end-to-end AI document processing: Docling layout-aware parsing, table extraction, hybrid chunking, FastEmbed vector embedding, and Supabase pgvector indexing. Returns HTTP 202 Accepted."
+          },
+          "response": []
+        },
+        {
+          "name": "2. Get Document Chunks",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/documents/{{document_id}}/chunks?limit=100&offset=0",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "documents",
+                "{{document_id}}",
+                "chunks"
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "100"
+                },
+                {
+                  "key": "offset",
+                  "value": "0"
+                }
+              ]
+            },
+            "description": "Retrieves all parsed text chunks, token statistics, and layout metadata indexed in Supabase pgvector for a specific document."
+          },
+          "response": []
+        },
+        {
+          "name": "3. Semantic Vector Search",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"query\": \"How much revenue did North America generate?\",\n  \"collection_id\": \"{{collection_id}}\",\n  \"limit\": 5\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/documents/search",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "documents",
+                "search"
+              ]
+            },
+            "description": "Performs cosine similarity vector search across all documents or scoped to a specific collection/document using FastEmbed vector embeddings and Supabase pgvector HNSW indexing."
+          },
+          "response": []
+        }
+      ]
     }
   ]
 }
