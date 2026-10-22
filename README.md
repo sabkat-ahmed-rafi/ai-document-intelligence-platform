@@ -11,7 +11,7 @@ For comprehensive deep-dive guides on each subsystem, architectural decisions, a
 | Chapter | Deep-Dive Technical Guide | Core Architecture & Topics Covered |
 | :---: | :--- | :--- |
 | **Index** | [**Documentation Blueprint & Master Index**](./docs/README.md) | High-level system architecture flowchart, technology stack matrix, component interaction map |
-| **01** | [**Storage Architecture & Ingestion Pipeline**](./docs/01_storage_and_ingestion.md) | Two-Phase Atomic Pre-Validation, Supabase Cloud Storage, Private Bucket Security, Signed URLs |
+| **01** | [**Storage Architecture & Ingestion Pipeline**](./docs/01_storage_and_ingestion.md) | Tolerant Batch Ingestion, Supabase Cloud Storage, Private Bucket Security, Signed URLs |
 | **02** | [**Collections & Organization (Pattern B)**](./docs/02_collections_and_organization.md) | Smart Folder Hierarchy, Entity-Relationship Data Model, Two-Tier Storage & Database Cascade Delete |
 | **03** | [**Distributed Task Queue (Celery + Redis)**](./docs/03_asynchronous_celery_pipeline.md) | Process Isolation, Late ACKs (`task_acks_late`), OOM Memory Safety, Celery Worker Pools |
 | **04** | [**Layout-Aware Parsing & Hybrid Chunking**](./docs/04_parsing_and_chunking.md) | IBM Docling Engine, Table Integrity Preservation, LangChain Integration, Async Thread Isolation |
@@ -56,7 +56,7 @@ flowchart TD
     Postman -->|Natural Language Search| SearchEndpoint
     Postman -->|Manage Folders| CollectionsEndpoint
 
-    UploadEndpoint -->|Phase 1: Pre-Validate & Stream| SupabaseStorage
+    UploadEndpoint -->|Tolerant Ingestion & Storage| SupabaseStorage
     UploadEndpoint -->|Register 'pending'| PostgreSQL
     UploadEndpoint -->|Enqueue Job in 1ms| Redis
 
@@ -70,9 +70,10 @@ flowchart TD
 
 ## ⚡ Key Architectural Highlights
 
-1. **Two-Phase Atomic Pre-Validation ("All-or-Nothing"):**
-   * Evaluates all files in a batch for empty size ($0$ bytes), size ceilings ($50$ MB), extensions, and MIME types.
-   * If even **one** file fails, the entire batch is rejected with `HTTP 400`. **Zero files are saved to cloud storage, and zero records are inserted into PostgreSQL.**
+1. **Tolerant Batch Ingestion with Actionable Failure Reporting:**
+   * Validates and ingests each file independently. Valid files are saved to cloud storage, recorded with status `pending`, and enqueued to Celery.
+   * Invalid, oversized, or corrupted files are isolated in the `failed` response array with exact error details, enabling 1-click retry without blocking valid documents.
+   * If 100% of files in a batch fail, the request returns `HTTP 400 Bad Request`.
 2. **Layout-Aware Parsing (IBM Docling via LangChain):**
    * Preserves complex multi-column tables as **intact Markdown tables** instead of flattening them into broken text strings.
    * Isolates CPU-heavy OCR and layout parsing inside background worker threads (`asyncio.to_thread`).
@@ -153,7 +154,7 @@ A complete, zero-configuration Postman collection is maintained at:
 * **System & Health:** Health check and database connectivity.
 * **Authentication:** Registration, Login, Token Refresh, Password Reset via Google SMTP.
 * **Collections:** Full CRUD with active document counts and cascade deletion.
-* **Documents:** Multi-file and single-file upload with atomic pre-validation.
+* **Documents:** Multi-file and single-file upload with tolerant batch ingestion.
 * **AI Processing & Vector Search:**
   * `POST /documents/{id}/process`: Trigger or re-trigger processing.
   * `GET /documents/{id}/chunks`: Retrieve parsed chunks, tables, and layout metadata.

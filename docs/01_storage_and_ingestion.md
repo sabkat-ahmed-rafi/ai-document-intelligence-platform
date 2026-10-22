@@ -20,11 +20,16 @@ However, in an AI Document Intelligence system:
 
 ---
 
-## 3. Two-Phase Atomic Pre-Validation ("All-or-Nothing")
+## 3. Tolerant Batch Ingestion with Actionable Failure Reporting
 
-A critical production requirement is **atomicity**: if a user uploads a batch of 10 files and the 10th file is corrupt, empty, or an executable (`.exe`), **zero files should be saved to cloud storage, and zero records should be created in PostgreSQL**.
+In real-world business workflows, users frequently upload batches containing multiple documents (e.g., 10 files). Under a strict "all-or-nothing" strategy, if 9 files are valid PDFs and 1 is an unsupported format, corrupted, or oversized file, rejecting the entire batch wastes bandwidth and creates heavy user friction.
 
-To achieve this, the pipeline enforces a **two-phase architecture**:
+The platform employs a **Tolerant Batch Ingestion** architecture:
+1. **Independent Per-File Validation & Ingestion:** Each file in the batch is inspected, validated, and stored independently.
+2. **Partial Success Preservation:** Valid files are saved to Supabase Storage, recorded in PostgreSQL with status `pending`, and immediately enqueued for Celery background processing.
+3. **Actionable Failure Isolation:** Invalid or corrupted files are caught and isolated in the `failed` response array with their exact filename and reason, enabling the frontend to offer a 1-click retry for only the failed items.
+4. **Total Failure Guard:** If 100% of the files in a batch fail, the request fails fast with `HTTP 400 Bad Request` (`ValidationException`), preventing empty jobs.
+5. **Orphan Cleanup:** If an unexpected error occurs during database recording after a file was written to storage, the storage object is immediately purged to prevent storage leaks.
 
 ```mermaid
 sequenceDiagram
@@ -38,27 +43,27 @@ sequenceDiagram
 
     User->>API: POST /documents/upload (files=[f1, f2, f3], JWT)
     
-    rect rgb(240, 248, 255)
-        Note over API,Validator: Phase 1: In-Memory Atomic Pre-Validation
-        loop For every file in batch
-            API->>Validator: Inspect bytes, size, extension, MIME type
-            alt Validation fails on ANY file
-                Validator-->>API: Raise ValidationException (e.g. invalid type, empty)
-                API-->>User: HTTP 400 Bad Request (0 files saved, 0 DB rows)
-            end
-        end
-    end
-
-    rect rgb(245, 255, 245)
-        Note over API,Queue: Phase 2: Ingestion, Storage & Dispatch (All files passed)
-        loop For every validated file
+    loop For each file in batch
+        API->>Validator: Inspect bytes, size, extension, MIME type
+        alt File is invalid / oversized / corrupted
+            Validator-->>API: Exception (e.g., unsupported extension)
+            API->>API: Record into failed list [ {filename, error} ]
+        else File is valid
             API->>Storage: Stream binary to 'documents/{user_id}/uuid.ext'
             Storage-->>API: Return storage_key
             API->>DB: Insert 'files' row (physical file tracking)
             API->>DB: Insert 'documents' row (status: "pending")
+            API->>API: Record into uploaded list [ DocumentUploadResponse ]
+        end
+    end
+
+    alt All files failed (uploaded is empty)
+        API-->>User: HTTP 400 Bad Request (ValidationException with error details)
+    else At least one file succeeded
+        loop For each successfully uploaded document
             API->>Queue: Enqueue process_document_task.delay(doc_id)
         end
-        API-->>User: HTTP 202 Accepted (batch summary + document_ids)
+        API-->>User: HTTP 202 Accepted (uploaded & failed arrays + partial counts)
     end
 ```
 
@@ -74,13 +79,16 @@ sequenceDiagram
    ```
 4. **MIME Whitelist with Fallback Guessing:**
    Browsers often send generic `application/octet-stream` for `.md` or `.csv`. The validator inspects `content_type`, and if generic, resolves the true MIME type using Python's `mimetypes.guess_type(filename)`.
-5. **Atomic Rollback Safeguard:**
-   If an unexpected network disruption occurs while uploading file 8 of 10 to Supabase Storage, the `try...except` block catches the error and purges the already-uploaded 7 files from Supabase Storage:
+5. **Orphan Storage Purge Safeguard:**
+   If an unexpected database error occurs after a file was written to Supabase Storage, the `except` block catches the error and deletes the newly created storage object:
    ```python
    except Exception as exc:
-       for rec in uploaded_file_records:
-           await self.file_service.storage.delete(rec.storage_key)
-       raise exc
+       if file_record and hasattr(file_record, "storage_key"):
+           try:
+               await self.file_service.storage.delete(file_record.storage_key)
+           except Exception:
+               pass
+       failed.append(FailedDocumentUpload(filename=fname, error=str(exc)))
    ```
 
 ---
@@ -165,15 +173,15 @@ To ensure clean separation of concerns, physical files and logical documents are
 | `collection_name`| `string` | Optional | Name of collection to auto-create on the fly if `collection_id` is omitted. |
 | `title` | `string` | Optional | Custom title override (applied when uploading a single document). |
 
-### Success Response (`HTTP 202 Accepted`):
+### Partial Success Response (`HTTP 202 Accepted`):
 ```json
 {
   "success": true,
-  "message": "2 documents accepted for processing into collection",
+  "message": "2 documents accepted for processing into collection (1 file failed)",
   "data": {
     "collection_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
     "total_uploaded": 2,
-    "total_failed": 0,
+    "total_failed": 1,
     "document_id": "doc_1111",
     "uploaded": [
       {
@@ -195,20 +203,25 @@ To ensure clean separation of concerns, physical files and logical documents are
         "created_at": "2026-10-23T00:10:00Z"
       }
     ],
-    "failed": []
+    "failed": [
+      {
+        "filename": "malicious.exe",
+        "error": "Unsupported file extension '.exe'. Allowed extensions: .bmp, .csv, .doc, .docx, .jpeg, .jpg, .md, .pdf, .png, .tiff, .txt, .webp"
+      }
+    ]
   }
 }
 ```
 
-### Error Response (Validation Failure — `HTTP 400 Bad Request`):
+### Complete Failure Response (`HTTP 400 Bad Request`):
+When 100% of files in the batch fail validation, the entire request is rejected:
 ```json
 {
   "success": false,
-  "message": "Batch upload rejected. 1 file(s) failed validation; no files were saved: 'malicious.exe': Unsupported file extension '.exe'. Allowed extensions: .bmp, .csv, .doc, .docx, .jpeg, .jpg, .md, .pdf, .png, .tiff, .txt, .webp",
+  "message": "Batch upload failed. All 1 file(s) failed: 'malicious.exe': Unsupported file extension '.exe'. Allowed extensions: .bmp, .csv, .doc, .docx, .jpeg, .jpg, .md, .pdf, .png, .tiff, .txt, .webp",
   "data": null
 }
 ```
-*(Notice: The entire request is rejected, zero storage bytes consumed, zero database records created).*
 
 ---
 

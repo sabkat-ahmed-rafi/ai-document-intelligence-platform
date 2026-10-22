@@ -10,7 +10,7 @@ This documentation is structured into dedicated, modular deep-dive guides. Each 
 
 | Chapter | Document | Core Focus Areas |
 | :---: | :--- | :--- |
-| **01** | [**Storage Architecture & Document Ingestion**](./01_storage_and_ingestion.md) | Two-Phase Atomic Pre-Validation, Supabase Cloud Storage, Private Bucket Security, Signed URLs |
+| **01** | [**Storage Architecture & Document Ingestion**](./01_storage_and_ingestion.md) | Tolerant Batch Ingestion, Supabase Cloud Storage, Private Bucket Security, Signed URLs |
 | **02** | [**Collections & Knowledge Base Organization**](./02_collections_and_organization.md) | Pattern B Hierarchy, Entity-Relationship Model, Two-Tier Cascade Delete, Upload Routing |
 | **03** | [**Distributed Asynchronous Pipeline (Celery + Redis)**](./03_asynchronous_celery_pipeline.md) | Message Broker Queue, Process Isolation, Late ACKs, OOM Memory Safeguards, Worker Pools |
 | **04** | [**Layout-Aware Parsing & Hybrid Chunking**](./04_parsing_and_chunking.md) | IBM Docling Engine, Table Integrity Preservation, LangChain Integration, Thread Isolation |
@@ -30,7 +30,7 @@ flowchart TD
     end
 
     subgraph StorageLayer ["2. Storage & Persistence"]
-        UploadAPI -->|Phase 1: All-or-Nothing Pre-Validation| Validator[FileValidator Engine]
+        UploadAPI -->|Tolerant Batch Validation| Validator[FileValidator Engine]
         Validator -->|Stream Binary| SupabaseStorage[(Supabase Storage Bucket: 'documents')]
         Validator -->|Insert 'files' Record| DBFiles[(PostgreSQL: 'files')]
         Validator -->|Insert 'documents' - status: pending| DBDocs[(PostgreSQL: 'documents')]

@@ -1,4 +1,5 @@
 import uuid
+from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 from fastapi import UploadFile
 
@@ -75,7 +76,7 @@ class DocumentService:
             filename=saved_doc.original_filename,
             mime_type=saved_doc.mime_type,
             file_size=saved_doc.file_size,
-            created_at=saved_doc.created_at,
+            created_at=saved_doc.created_at or datetime.now(timezone.utc),
         )
 
     async def upload_documents(
@@ -104,70 +105,45 @@ class DocumentService:
             await self.collection_service.get_collection(resolved_collection_id, user_id)
 
         # =========================================================================
-        # PHASE 1: ATOMIC PRE-VALIDATION (All-or-Nothing)
-        # Read and validate EVERY file (size, empty check, MIME type, extension)
-        # before saving any file in storage or database.
-        # If ANY file fails, abort immediately; NO files are saved.
+        # Tolerant Batch Ingestion:
+        # Each file is validated, stored, and recorded independently.
+        # - Valid files are persisted to storage, saved to DB, and returned in 'uploaded'.
+        # - Invalid/corrupted files are isolated and returned in 'failed' with error details.
+        # - Celery AI processing tasks are dispatched only for the successfully uploaded files.
+        # - If 100% of the batch fails, a ValidationException is raised.
         # =========================================================================
-        prepared_files: list[dict] = []
-        validation_errors: list[str] = []
+        uploaded: list[DocumentUploadResponse] = []
+        failed: list[FailedDocumentUpload] = []
+        is_single = len(files) == 1
 
         for idx, f in enumerate(files, start=1):
             fname = f.filename or f"file_{idx}"
-            content = await f.read()
-            size = len(content)
-
+            file_record: File | None = None
             try:
+                content = await f.read()
+                size = len(content)
+
+                # 1. Per-file validation (content type, size, extension)
                 resolved_content_type = self.file_service.validator.validate(
                     content_type=f.content_type or "application/octet-stream",
                     size=size,
                     category=FileCategory.DOCUMENT,
                     filename=f.filename,
                 )
-                prepared_files.append({
-                    "file": f,
-                    "content": content,
-                    "content_type": resolved_content_type,
-                    "size": size,
-                    "filename": fname,
-                })
-            except Exception as exc:
-                err_msg = str(getattr(exc, "message", str(exc)))
-                validation_errors.append(f"'{fname}': {err_msg}")
 
-        if validation_errors:
-            # Rejection: Zero files saved to storage, zero records in database
-            raise ValidationException(
-                f"Batch upload rejected. {len(validation_errors)} file(s) failed validation; no files were saved: "
-                + " | ".join(validation_errors)
-            )
+                doc_title = title.strip() if (is_single and title and title.strip()) else fname
 
-        # =========================================================================
-        # PHASE 2: INGESTION & STORAGE (All files are pre-validated)
-        # Only reached when 100% of the files in the batch passed Phase 1.
-        # If an unexpected storage failure occurs halfway, roll back stored files.
-        # =========================================================================
-        is_single = len(prepared_files) == 1
-        uploaded: list[DocumentUploadResponse] = []
-        uploaded_file_records: list[File] = []
-
-        try:
-            for item in prepared_files:
-                f = item["file"]
-                doc_title = title if (is_single and title) else item["filename"]
-
-                # 1. Upload file using FileService
+                # 2. Upload file using FileService (storage provider + files DB record)
                 file_record = await self.file_service.upload(
                     file=f,
                     owner_type=OwnerType.DOCUMENT,
                     owner_id=user_id,
                     category=FileCategory.DOCUMENT,
-                    content=item["content"],
-                    resolved_content_type=item["content_type"],
+                    content=content,
+                    resolved_content_type=resolved_content_type,
                 )
-                uploaded_file_records.append(file_record)
 
-                # 2. Create the Document entity in PostgreSQL with PENDING status
+                # 3. Create the Document entity in PostgreSQL with initial PENDING status
                 document = Document(
                     id=str(uuid.uuid4()),
                     user_id=user_id,
@@ -191,27 +167,36 @@ class DocumentService:
                         filename=saved_doc.original_filename,
                         mime_type=saved_doc.mime_type,
                         file_size=saved_doc.file_size,
-                        created_at=saved_doc.created_at,
+                        created_at=saved_doc.created_at or datetime.now(timezone.utc),
                     )
                 )
 
-        except Exception as exc:
-            # Rollback: Clean up any files that were already saved in cloud storage during this batch
-            for rec in uploaded_file_records:
-                try:
-                    await self.file_service.storage.delete(rec.storage_key)
-                except Exception:
-                    pass
-            raise exc
+            except Exception as exc:
+                # Clean up orphaned storage object if file_record was created before failure
+                if file_record and hasattr(file_record, "storage_key"):
+                    try:
+                        await self.file_service.storage.delete(file_record.storage_key)
+                    except Exception:
+                        pass
+
+                err_msg = str(getattr(exc, "message", str(exc)))
+                failed.append(FailedDocumentUpload(filename=fname, error=err_msg))
+
+        # If all files in the batch failed, abort with ValidationException
+        if not uploaded:
+            error_details = " | ".join(f"'{f.filename}': {f.error}" for f in failed)
+            raise ValidationException(
+                f"Batch upload failed. All {len(failed)} file(s) failed: {error_details}"
+            )
 
         primary_doc_id = uploaded[0].document_id if uploaded else None
 
         return DocumentBatchUploadResponse(
             collection_id=resolved_collection_id,
             uploaded=uploaded,
-            failed=[],
+            failed=failed,
             total_uploaded=len(uploaded),
-            total_failed=0,
+            total_failed=len(failed),
             document_id=primary_doc_id,
         )
 

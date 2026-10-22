@@ -56,10 +56,12 @@ async def upload_documents(
     document_service: DocumentService = Depends(get_document_service),
 ):
     """
-    Accepts one or multiple documents/images. Securely uploads each file to cloud storage,
-    links them to a collection (if specified), records initial state as 'pending' in PostgreSQL,
-    enqueues distributed Celery AI processing & pgvector indexing in the background,
-    and returns HTTP 202 Accepted immediately.
+    Accepts one or multiple documents/images using tolerant batch ingestion.
+    Valid files are securely uploaded to cloud storage, recorded with initial 'pending'
+    status in PostgreSQL, and enqueued for background AI processing via Celery.
+    Invalid or corrupted files are isolated in the 'failed' response array with exact error
+    reasons, allowing partial success and single-file retry without blocking valid documents.
+    Returns HTTP 202 Accepted when at least one file succeeds.
     """
     upload_list = list(files)
     if file is not None and file not in upload_list:
