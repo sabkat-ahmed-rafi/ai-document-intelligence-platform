@@ -227,4 +227,4 @@ AI Document Intelligence Platform API
 ---
 
 ### Navigation
-[← Previous: 05 — Vector Embeddings & pgvector](./05_embeddings_and_vector_store.md) | [Documentation Blueprint](./README.md)
+[← Previous: 05 — Vector Embeddings & pgvector](./05_embeddings_and_vector_store.md) | [Documentation Blueprint](./README.md) | [Next: 07 — LLM & RAG Orchestration →](./07_llm_and_rag_orchestration.md)

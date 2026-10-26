@@ -17,6 +17,7 @@ For comprehensive deep-dive guides on each subsystem, architectural decisions, a
 | **04** | [**Layout-Aware Parsing & Hybrid Chunking**](./docs/04_parsing_and_chunking.md) | IBM Docling Engine, Table Integrity Preservation, LangChain Integration, Async Thread Isolation |
 | **05** | [**Vector Embeddings & pgvector Indexing**](./docs/05_embeddings_and_vector_store.md) | Zero-Cost FastEmbed ONNX Engine, PostgreSQL `pgvector`, HNSW Cosine Indexing, Tenant Scoping |
 | **06** | [**Semantic Search & Frontend Integration**](./docs/06_semantic_search_and_api_guide.md) | Semantic Similarity Retrieval, Source Citations, UI Blueprints (Search Bar, Inspector, Polling) |
+| **07** | [**Pluggable LLM Layer & RAG Generation**](./docs/07_llm_and_rag_orchestration.md) | Multi-Provider LLM Factory (Groq, Gemini, Ollama, OpenAI), Zero-Cost Setup, Smart Defaults |
 
 ---
 

@@ -16,6 +16,7 @@ This documentation is structured into dedicated, modular deep-dive guides. Each 
 | **04** | [**Layout-Aware Parsing & Hybrid Chunking**](./04_parsing_and_chunking.md) | IBM Docling Engine, Table Integrity Preservation, LangChain Integration, Thread Isolation |
 | **05** | [**Vector Embeddings & Supabase pgvector Indexing**](./05_embeddings_and_vector_store.md) | FastEmbed BGE Embeddings, PostgreSQL `pgvector`, HNSW Cosine Indexing, Multi-Tenant Scoping |
 | **06** | [**Semantic Search, Chunks & Frontend Integration**](./06_semantic_search_and_api_guide.md) | Semantic Similarity Retrieval, Source Citations, UI Blueprints, Postman Integration |
+| **07** | [**Pluggable LLM Layer & RAG Generation**](./07_llm_and_rag_orchestration.md) | Multi-Provider LLM Factory (Groq, Gemini, Ollama, OpenAI), Zero-Cost Setup, Smart Defaults |
 
 ---
 
