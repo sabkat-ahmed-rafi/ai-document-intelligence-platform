@@ -46,6 +46,14 @@ class Settings(BaseSettings):
     CELERY_RESULT_BACKEND: str = "redis://localhost:6379/0"
     CELERY_TASK_ALWAYS_EAGER: bool = False
 
+    # LLM & RAG Generation Configuration
+    LLM_PROVIDER: str = "groq"  # "groq", "openai", "gemini", "ollama"
+    LLM_MODEL: str = "llama-3.3-70b-versatile"
+    LLM_API_KEY: str = ""
+    LLM_BASE_URL: str | None = None
+    LLM_TEMPERATURE: float = 0.1
+    LLM_MAX_TOKENS: int = 2048
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
