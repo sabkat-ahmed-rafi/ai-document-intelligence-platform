@@ -1,4 +1,5 @@
 from .context import RAGContextBuilder
+from .dependencies import get_chat_service, get_rag_retriever
 from .prompts import (
     FALLBACK_NO_CONTEXT_ANSWER,
     RAG_HUMAN_PROMPT,
@@ -12,6 +13,7 @@ from .schemas import (
     CitationSource,
     RAGContext,
 )
+from .service import ChatService
 
 __all__ = [
     "CitationSource",
@@ -20,6 +22,9 @@ __all__ = [
     "ChatQueryResponse",
     "RAGContextBuilder",
     "RAGRetriever",
+    "ChatService",
+    "get_rag_retriever",
+    "get_chat_service",
     "RAG_SYSTEM_PROMPT",
     "RAG_HUMAN_PROMPT",
     "FALLBACK_NO_CONTEXT_ANSWER",
