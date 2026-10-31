@@ -85,6 +85,34 @@ class ChatQueryRequest(BaseModel):
     )
 
 
+class SingleDocumentChatRequest(BaseModel):
+    """Payload for submitting a question scoped to a specific document."""
+
+    question: str = Field(
+        ...,
+        min_length=1,
+        max_length=2000,
+        description="Natural language question to ask over this document",
+        examples=["What is the total revenue reported on page 3?", "List key contract terms."],
+    )
+    top_k: int = Field(
+        5,
+        ge=1,
+        le=20,
+        description="Maximum number of context chunks to retrieve for synthesis",
+    )
+    similarity_threshold: float = Field(
+        0.0,
+        ge=0.0,
+        le=1.0,
+        description="Minimum cosine similarity score required for chunks to be included",
+    )
+    stream: bool = Field(
+        False,
+        description="If true, stream the generated tokens in real-time via Server-Sent Events (SSE)",
+    )
+
+
 class ChatQueryResponse(BaseModel):
     """Response returned by the Document Chat & RAG Engine."""
 

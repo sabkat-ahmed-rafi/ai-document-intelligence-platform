@@ -8,6 +8,7 @@ from core.exceptions import register_exception_handler
 from core.lifespan import lifespan
 from infrastructure.database.session import engine
 from modules.auth import auth_router
+from modules.chat import chat_router
 from modules.collections import collections_router
 from modules.documents import documents_router
 from modules.processing import processing_router
@@ -33,6 +34,7 @@ def create_app() -> FastAPI:
     app.include_router(collections_router, prefix="/collections", tags=["Collections"])
     app.include_router(documents_router, prefix="/documents", tags=["Documents"])
     app.include_router(processing_router, prefix="/documents", tags=["AI Processing & Vector Search"])
+    app.include_router(chat_router, prefix="/documents", tags=["RAG & Document Chat"])
 
     @app.get("/health", response_model=ApiResponse[dict], tags=["System"])
     async def health_check():

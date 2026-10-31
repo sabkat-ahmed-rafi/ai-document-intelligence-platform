@@ -314,15 +314,169 @@ self.chain = self.prompt_template | self.llm | self.output_parser
 
 ---
 
-## 8. Roadmap & Progress Matrix
+## 8. Phase 4: Document Chat APIs & SSE Streaming (`app/modules/chat/router.py`)
+
+The platform exposes two dedicated chat endpoints under the `/documents` prefix:
+
+```
+FastAPI Gateway (Port 8000)
+├── POST /documents/chat               # Multi-document or collection-scoped Q&A
+└── POST /documents/{document_id}/chat # Single document focused Q&A
+```
+
+---
+
+### Endpoint 1: `POST /documents/chat`
+
+#### A. Batch Mode (`stream: false`)
+Returns a standard JSON response with complete text synthesis and structured citations:
+
+**Request (`POST /documents/chat`):**
+```json
+{
+  "question": "What was the quarterly revenue and what factors drove it?",
+  "collection_id": "c1d2e3f4-5678-90ab-cdef-1234567890ab",
+  "top_k": 5,
+  "similarity_threshold": 0.60,
+  "stream": false
+}
+```
+
+**Response (`HTTP 200 OK`):**
+```json
+{
+  "success": true,
+  "message": "Response generated successfully",
+  "data": {
+    "question": "What was the quarterly revenue and what factors drove it?",
+    "answer": "According to [Source 1], the total quarterly revenue reached $1.2B, representing a 14% year-over-year growth. As detailed in [Source 2], the primary growth driver was enterprise expansion into cloud infrastructure services.",
+    "citations": [
+      {
+        "source_number": 1,
+        "document_id": "doc_9999",
+        "document_title": "Q4_Financial_Report.pdf",
+        "chunk_id": "chunk_001",
+        "chunk_index": 3,
+        "page_number": 12,
+        "snippet": "In Q4, overall recurring SaaS revenue grew by 14% year-over-year to $1.2B...",
+        "similarity": 0.9234
+      },
+      {
+        "source_number": 2,
+        "document_id": "doc_9999",
+        "document_title": "Q4_Financial_Report.pdf",
+        "chunk_id": "chunk_005",
+        "chunk_index": 7,
+        "page_number": 15,
+        "snippet": "Enterprise expansion into cloud infrastructure services was the primary driver of top-line growth...",
+        "similarity": 0.8871
+      }
+    ],
+    "model": "llama-3.3-70b-versatile",
+    "provider": "groq",
+    "execution_time_ms": 348.2
+  }
+}
+```
+
+---
+
+#### B. Streaming Mode (`stream: true`)
+When `stream: true`, the endpoint responds with **W3C Server-Sent Events (`text/event-stream`)** for real-time word-by-word UI rendering.
+
+**Response Headers:**
+```http
+HTTP/1.1 200 OK
+Content-Type: text/event-stream; charset=utf-8
+Cache-Control: no-cache
+Connection: keep-alive
+X-Accel-Buffering: no
+```
+
+**Streamed Event Flow:**
+```http
+event: metadata
+data: {"question": "What was the quarterly revenue?", "citations": [{"source_number": 1, "document_title": "Q4_Financial_Report.pdf", "page_number": 12, ...}], "model": "llama-3.3-70b-versatile", "provider": "groq"}
+
+event: token
+data: {"token": "According "}
+
+event: token
+data: {"token": "to "}
+
+event: token
+data: {"token": "[Source 1], "}
+
+event: token
+data: {"token": "revenue "}
+
+event: token
+data: {"token": "was "}
+
+event: token
+data: {"token": "$1.2B."}
+
+event: done
+data: {"execution_time_ms": 284.5}
+```
+
+> [!TIP]
+> The **`metadata` event is emitted first**, before LLM token generation begins. This enables modern frontends (React / Vue / Next.js) to render clickable source pills and page badges immediately while the text is still typing.
+
+---
+
+### Endpoint 2: `POST /documents/{document_id}/chat`
+
+Restricts the vector retrieval strictly to the specified document ID.
+
+**Request (`POST /documents/355ff883-df05-457b/chat`):**
+```json
+{
+  "question": "What is the penalty for early termination?",
+  "top_k": 3,
+  "similarity_threshold": 0.50,
+  "stream": false
+}
+```
+
+**Response (`HTTP 200 OK`):**
+```json
+{
+  "success": true,
+  "message": "Response generated successfully",
+  "data": {
+    "question": "What is the penalty for early termination?",
+    "answer": "According to [Source 1], early termination requires a 30-day written notice and payment of 50% of the remaining contract balance.",
+    "citations": [
+      {
+        "source_number": 1,
+        "document_id": "355ff883-df05-457b",
+        "document_title": "Master_Services_Agreement.pdf",
+        "chunk_id": "chunk_777",
+        "chunk_index": 9,
+        "page_number": 8,
+        "snippet": "Section 9.2: Early termination requires thirty (30) days written notice and payment of 50%...",
+        "similarity": 0.9412
+      }
+    ],
+    "model": "llama-3.3-70b-versatile",
+    "provider": "groq",
+    "execution_time_ms": 312.1
+  }
+}
+```
+
+---
+
+## 9. Roadmap & Progress Matrix
 
 ```mermaid
 flowchart LR
     P1["✅ Phase 1: LLM Layer<br/>(Factory, Config, Multi-Provider)"]
     P2["✅ Phase 2: Context & Citation Engine<br/>(pgvector Retrieval, Anti-Hallucination Prompt)"]
     P3["✅ Phase 3: RAG Service<br/>(End-to-end Synthesis & Grounding)"]
-    P4["🔄 Phase 4: Chat APIs & SSE Streaming<br/>(FastAPI Endpoints + Real-time Stream)"]
-    P5["⏳ Phase 5: Verification & Postman<br/>(E2E Tests, Docs & Postman Update)"]
+    P4["✅ Phase 4: Chat APIs & SSE Streaming<br/>(FastAPI Endpoints + Real-time Stream)"]
+    P5["🔄 Phase 5: Verification & Postman<br/>(E2E Tests, Docs & Postman Update)"]
 
     P1 --> P2 --> P3 --> P4 --> P5
 ```
@@ -330,8 +484,8 @@ flowchart LR
 * **Phase 1 (Completed):** Multi-provider LLM Factory (`ChatGroq`, `ChatOpenAI`, `ChatGoogleGenerativeAI`, `ChatOllama`) with smart model defaults.
 * **Phase 2 (Completed):** `RAGRetriever`, `RAGContextBuilder`, page extraction, and LangChain `ChatPromptTemplate` with anti-hallucination directives.
 * **Phase 3 (Completed):** `ChatService` orchestrator supporting batch synthesis, streaming generator, fast-exit empty context guard, and `dependencies.py`.
-* **Phase 4 (Next):** FastAPI chat endpoints (`POST /documents/chat`, `POST /documents/{id}/chat`) with Server-Sent Events (SSE) streaming.
-* **Phase 5:** End-to-end testing, Postman collection update, and documentation wrap-up.
+* **Phase 4 (Completed):** FastAPI chat endpoints (`POST /documents/chat`, `POST /documents/{id}/chat`) with Server-Sent Events (SSE) streaming.
+* **Phase 5 (Next):** Update Postman collection (`ai-document-intelligence-platform.json`), verify collection import, and synchronize master documentation.
 
 ---
 

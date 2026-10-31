@@ -7,18 +7,22 @@ from .prompts import (
     get_rag_prompt_template,
 )
 from .retriever import RAGRetriever
+from .router import router as chat_router
 from .schemas import (
     ChatQueryRequest,
     ChatQueryResponse,
     CitationSource,
     RAGContext,
+    SingleDocumentChatRequest,
 )
 from .service import ChatService
 
 __all__ = [
+    "chat_router",
     "CitationSource",
     "RAGContext",
     "ChatQueryRequest",
+    "SingleDocumentChatRequest",
     "ChatQueryResponse",
     "RAGContextBuilder",
     "RAGRetriever",
