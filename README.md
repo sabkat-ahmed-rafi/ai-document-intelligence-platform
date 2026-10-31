@@ -32,6 +32,7 @@ flowchart TD
     subgraph API ["FastAPI Web Gateway (Port 8000)"]
         UploadEndpoint[POST /documents/upload<br/>HTTP 202 Accepted]
         SearchEndpoint[POST /documents/search<br/>Cosine Semantic Search]
+        ChatEndpoint[POST /documents/chat<br/>RAG Q&A + SSE Stream]
         CollectionsEndpoint[CRUD /collections<br/>Pattern B Knowledge Bases]
     end
 
@@ -55,6 +56,7 @@ flowchart TD
 
     Postman -->|Upload Files| UploadEndpoint
     Postman -->|Natural Language Search| SearchEndpoint
+    Postman -->|Grounded Q&A & Stream SSE| ChatEndpoint
     Postman -->|Manage Folders| CollectionsEndpoint
 
     UploadEndpoint -->|Tolerant Ingestion & Storage| SupabaseStorage
@@ -65,6 +67,7 @@ flowchart TD
     CeleryWorker -->|Fetch Binary| SupabaseStorage
     FastEmbed -->|Index 384-dim Vectors| PGVector
     SearchEndpoint -->|Query Vector Match| PGVector
+    ChatEndpoint -->|Vector Context Retrieval| PGVector
 ```
 
 ---
@@ -87,6 +90,10 @@ flowchart TD
 5. **Process-Isolated Distributed Worker Queue (Celery + Redis):**
    * Web server returns **`HTTP 202 Accepted`** in $< 2$ milliseconds.
    * Background processing runs in dedicated Celery worker processes with `task_acks_late=True` and `worker_prefetch_multiplier=1` to prevent memory exhaustion and lost tasks.
+6. **Grounded RAG & Inline Citations (LangChain LCEL):**
+   * Pluggable LLM Factory (Groq, Gemini, Ollama, OpenAI) with strict anti-hallucination guardrails.
+   * Zero-token fast-exit optimization returns immediate answers when context is empty.
+   * Real-time Server-Sent Events (SSE) token streaming with structured page and chunk citations.
 
 ---
 
@@ -160,5 +167,9 @@ A complete, zero-configuration Postman collection is maintained at:
   * `POST /documents/{id}/process`: Trigger or re-trigger processing.
   * `GET /documents/{id}/chunks`: Retrieve parsed chunks, tables, and layout metadata.
   * `POST /documents/search`: Semantic similarity search with cosine ranking.
+* **RAG & Document Chat:**
+  * `POST /documents/chat`: Natural language Q&A across documents with inline citations (`[Source 1]`).
+  * `POST /documents/chat` (SSE): Real-time token-by-token Server-Sent Events streaming.
+  * `POST /documents/{id}/chat`: Questions scoped strictly to a single document.
 
 

@@ -476,7 +476,7 @@ flowchart LR
     P2["✅ Phase 2: Context & Citation Engine<br/>(pgvector Retrieval, Anti-Hallucination Prompt)"]
     P3["✅ Phase 3: RAG Service<br/>(End-to-end Synthesis & Grounding)"]
     P4["✅ Phase 4: Chat APIs & SSE Streaming<br/>(FastAPI Endpoints + Real-time Stream)"]
-    P5["🔄 Phase 5: Verification & Postman<br/>(E2E Tests, Docs & Postman Update)"]
+    P5["✅ Phase 5: Verification & Postman<br/>(E2E Tests, Docs & Postman Update)"]
 
     P1 --> P2 --> P3 --> P4 --> P5
 ```
@@ -485,7 +485,7 @@ flowchart LR
 * **Phase 2 (Completed):** `RAGRetriever`, `RAGContextBuilder`, page extraction, and LangChain `ChatPromptTemplate` with anti-hallucination directives.
 * **Phase 3 (Completed):** `ChatService` orchestrator supporting batch synthesis, streaming generator, fast-exit empty context guard, and `dependencies.py`.
 * **Phase 4 (Completed):** FastAPI chat endpoints (`POST /documents/chat`, `POST /documents/{id}/chat`) with Server-Sent Events (SSE) streaming.
-* **Phase 5 (Next):** Update Postman collection (`ai-document-intelligence-platform.json`), verify collection import, and synchronize master documentation.
+* **Phase 5 (Completed):** Added `RAG & Document Chat` folder to Postman collection (`ai-document-intelligence-platform.json`), verified collection import, and synchronized master documentation index.
 
 ---
 

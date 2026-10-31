@@ -863,6 +863,126 @@
           "response": []
         }
       ]
+    },
+    {
+      "name": "RAG & Document Chat",
+      "item": [
+        {
+          "name": "1. Ask Documents Question (Batch)",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"question\": \"What was the total revenue and what drove the growth?\",\n  \"collection_id\": \"{{collection_id}}\",\n  \"top_k\": 5,\n  \"similarity_threshold\": 0.5,\n  \"stream\": false\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/documents/chat",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "documents",
+                "chat"
+              ]
+            },
+            "description": "Submits a natural language question across all documents or filtered by collection. Returns an instant grounded answer with inline [Source N] tags and structured citations (page numbers, similarity, snippets)."
+          },
+          "response": []
+        },
+        {
+          "name": "2. Ask Documents Question (SSE Streaming)",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"question\": \"What was the total revenue and what drove the growth?\",\n  \"collection_id\": \"{{collection_id}}\",\n  \"top_k\": 5,\n  \"similarity_threshold\": 0.5,\n  \"stream\": true\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/documents/chat",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "documents",
+                "chat"
+              ]
+            },
+            "description": "Streams real-time answer tokens via Server-Sent Events (SSE). Emits metadata event first with citations, followed by word-by-word token events, and finishes with done event with latency metrics."
+          },
+          "response": []
+        },
+        {
+          "name": "3. Single Document Chat (Scoped)",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"question\": \"What are the key terms and termination clauses in this agreement?\",\n  \"top_k\": 5,\n  \"similarity_threshold\": 0.5,\n  \"stream\": false\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/documents/{{document_id}}/chat",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "documents",
+                "{{document_id}}",
+                "chat"
+              ]
+            },
+            "description": "Submits a question scoped strictly to a single document. Ensures that vector retrieval and grounding never search outside this document's parsed chunks."
+          },
+          "response": []
+        }
+      ]
     }
   ]
 }
