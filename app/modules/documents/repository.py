@@ -30,6 +30,26 @@ class DocumentRepository:
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none()
 
+    async def get_by_ids(
+        self,
+        document_ids: list[str],
+        user_id: str | None = None,
+    ) -> dict[str, Document]:
+        """Batch fetch active documents by their IDs, returning a mapping of {document_id: Document}."""
+        if not document_ids:
+            return {}
+
+        stmt = select(Document).where(
+            Document.id.in_(document_ids),
+            Document.deleted_at.is_(None),
+        )
+        if user_id:
+            stmt = stmt.where(Document.user_id == user_id)
+
+        result = await self.session.execute(stmt)
+        docs = list(result.scalars().all())
+        return {doc.id: doc for doc in docs}
+
     async def list_for_user(
         self,
         user_id: str,
