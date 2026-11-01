@@ -18,6 +18,7 @@ For comprehensive deep-dive guides on each subsystem, architectural decisions, a
 | **05** | [**Vector Embeddings & pgvector Indexing**](./docs/05_embeddings_and_vector_store.md) | Zero-Cost FastEmbed ONNX Engine, PostgreSQL `pgvector`, HNSW Cosine Indexing, Tenant Scoping |
 | **06** | [**Semantic Search & Frontend Integration**](./docs/06_semantic_search_and_api_guide.md) | Semantic Similarity Retrieval, Source Citations, UI Blueprints (Search Bar, Inspector, Polling) |
 | **07** | [**Pluggable LLM Layer & RAG Generation**](./docs/07_llm_and_rag_orchestration.md) | Multi-Provider LLM Factory (Groq, Gemini, Ollama, OpenAI), Zero-Cost Setup, Smart Defaults |
+| **08** | [**Hybrid Search & Reciprocal Rank Fusion (RRF)**](./docs/08_hybrid_search_and_rrf.md) | Dense Vector + Sparse BM25 Keywords, GIN Indexing, RRF Mathematical Rank Blending |
 
 ---
 
@@ -94,6 +95,10 @@ flowchart TD
    * Pluggable LLM Factory (Groq, Gemini, Ollama, OpenAI) with strict anti-hallucination guardrails.
    * Zero-token fast-exit optimization returns immediate answers when context is empty.
    * Real-time Server-Sent Events (SSE) token streaming with structured page and chunk citations.
+7. **Supabase Hybrid Search & Reciprocal Rank Fusion (RRF):**
+   * Blends dense pgvector cosine similarity and sparse PostgreSQL BM25 full-text search.
+   * Uses GIN indexes over generated `tsvector` columns and `websearch_to_tsquery` for exact code and acronym matching.
+   * Uses RRF ($k=60$) to eliminate the vocabulary mismatch problem.
 
 ---
 

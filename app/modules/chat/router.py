@@ -71,6 +71,7 @@ async def chat_documents(
         stream_gen = chat_service.stream_query(
             user_id=current_user.id,
             question=payload.question,
+            search_mode=payload.search_mode,
             collection_id=payload.collection_id,
             document_id=payload.document_id,
             top_k=payload.top_k,
@@ -81,6 +82,7 @@ async def chat_documents(
     result = await chat_service.query(
         user_id=current_user.id,
         question=payload.question,
+        search_mode=payload.search_mode,
         collection_id=payload.collection_id,
         document_id=payload.document_id,
         top_k=payload.top_k,
@@ -113,6 +115,7 @@ async def chat_single_document(
         stream_gen = chat_service.stream_query(
             user_id=current_user.id,
             question=payload.question,
+            search_mode=payload.search_mode,
             document_id=document_id,
             top_k=payload.top_k,
             similarity_threshold=payload.similarity_threshold,
@@ -122,6 +125,7 @@ async def chat_single_document(
     result = await chat_service.query(
         user_id=current_user.id,
         question=payload.question,
+        search_mode=payload.search_mode,
         document_id=document_id,
         top_k=payload.top_k,
         similarity_threshold=payload.similarity_threshold,

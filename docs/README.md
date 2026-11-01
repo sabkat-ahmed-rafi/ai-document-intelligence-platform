@@ -17,6 +17,7 @@ This documentation is structured into dedicated, modular deep-dive guides. Each 
 | **05** | [**Vector Embeddings & Supabase pgvector Indexing**](./05_embeddings_and_vector_store.md) | FastEmbed BGE Embeddings, PostgreSQL `pgvector`, HNSW Cosine Indexing, Multi-Tenant Scoping |
 | **06** | [**Semantic Search, Chunks & Frontend Integration**](./06_semantic_search_and_api_guide.md) | Semantic Similarity Retrieval, Source Citations, UI Blueprints, Postman Integration |
 | **07** | [**Pluggable LLM Layer & RAG Generation**](./07_llm_and_rag_orchestration.md) | Multi-Provider LLM Factory (Groq, Gemini, Ollama, OpenAI), Zero-Cost Setup, Smart Defaults |
+| **08** | [**Hybrid Search & Reciprocal Rank Fusion (RRF)**](./08_hybrid_search_and_rrf.md) | Dense Vector + Sparse BM25 Keywords, GIN Indexing, RRF Mathematical Rank Blending |
 
 ---
 
@@ -71,6 +72,7 @@ flowchart TD
 | **Vector Storage** | FastEmbed, Supabase `pgvector`, HNSW | **Zero-API-Cost CPU Embeddings:** Uses quantized ONNX runtime (`bge-small-en-v1.5`) with PostgreSQL native HNSW vector indexes. | [05_embeddings_and_vector_store.md](./05_embeddings_and_vector_store.md) |
 | **Search & APIs** | FastAPI, pgvector Cosine Search | **Cosine Similarity Retrieval:** Scoped by tenant (`user_id`) and optional knowledge base (`collection_id`). | [06_semantic_search_and_api_guide.md](./06_semantic_search_and_api_guide.md) |
 | **RAG & Document Chat** | LangChain LCEL, Groq / Gemini / Ollama / OpenAI, SSE | **Grounded Synthesis & Inline Citations:** Uses strict anti-hallucination prompt templates, fast-exit empty context guard, and real-time Server-Sent Events token streaming with structured page/chunk citations. | [07_llm_and_rag_orchestration.md](./07_llm_and_rag_orchestration.md) |
+| **Hybrid Search (RRF)** | PostgreSQL `tsvector`, GIN Index, Reciprocal Rank Fusion | **Dual-Signal Retrieval:** Blends vector semantic proximity and BM25 exact keyword matching using RRF ($k=60$), eliminating vocabulary mismatch on codes, acronyms, and legal clauses. | [08_hybrid_search_and_rrf.md](./08_hybrid_search_and_rrf.md) |
 
 ---
 

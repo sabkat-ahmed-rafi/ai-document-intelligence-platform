@@ -51,6 +51,7 @@ class ChatService:
         *,
         user_id: str,
         question: str,
+        search_mode: str = "hybrid",
         collection_id: str | None = None,
         document_id: str | None = None,
         top_k: int = 5,
@@ -72,6 +73,7 @@ class ChatService:
         rag_context = await self.retriever.retrieve(
             user_id=user_id,
             query=clean_question,
+            search_mode=search_mode,
             collection_id=collection_id,
             document_id=document_id,
             top_k=top_k,
@@ -117,6 +119,7 @@ class ChatService:
         *,
         user_id: str,
         question: str,
+        search_mode: str = "hybrid",
         collection_id: str | None = None,
         document_id: str | None = None,
         top_k: int = 5,
@@ -136,6 +139,7 @@ class ChatService:
         rag_context = await self.retriever.retrieve(
             user_id=user_id,
             query=clean_question,
+            search_mode=search_mode,
             collection_id=collection_id,
             document_id=document_id,
             top_k=top_k,

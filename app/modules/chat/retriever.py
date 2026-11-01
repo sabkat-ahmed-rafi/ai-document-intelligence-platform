@@ -29,36 +29,61 @@ class RAGRetriever:
         *,
         user_id: str,
         query: str,
+        search_mode: str = "hybrid",
         collection_id: str | None = None,
         document_id: str | None = None,
         top_k: int = 5,
         similarity_threshold: float = 0.0,
     ) -> RAGContext:
         """
-        Executes semantic vector search and resolves metadata for context injection.
+        Retrieves context chunks using hybrid, vector, or keyword search,
+        and resolves metadata for context injection.
         """
         clean_query = query.strip()
         if not clean_query:
             raise ValidationException("Search query cannot be empty")
 
-        # 1. Embed query into 384-dim dense vector using FastEmbed
-        query_vector = await self.embeddings.aembed_query(clean_query)
+        resolved_mode = search_mode.lower() if search_mode else "hybrid"
 
-        # 2. Query Supabase pgvector using cosine distance <=> operator
-        raw_results = await self.chunk_repo.search_similar(
-            query_vector=query_vector,
-            user_id=user_id,
-            collection_id=collection_id,
-            document_id=document_id,
-            limit=top_k,
-        )
+        if resolved_mode == "keyword":
+            raw_results = await self.chunk_repo.search_keywords(
+                query_text=clean_query,
+                user_id=user_id,
+                collection_id=collection_id,
+                document_id=document_id,
+                limit=top_k,
+            )
+        elif resolved_mode == "vector":
+            query_vector = await self.embeddings.aembed_query(clean_query)
+            raw_results = await self.chunk_repo.search_similar(
+                query_vector=query_vector,
+                user_id=user_id,
+                collection_id=collection_id,
+                document_id=document_id,
+                limit=top_k,
+            )
+        else:
+            # Default: Hybrid Search (Vector + BM25 via Reciprocal Rank Fusion)
+            query_vector = await self.embeddings.aembed_query(clean_query)
+            fused_matches = await self.chunk_repo.search_hybrid(
+                query_vector=query_vector,
+                query_text=clean_query,
+                user_id=user_id,
+                collection_id=collection_id,
+                document_id=document_id,
+                limit=top_k,
+            )
+            raw_results = [(f.chunk, f.rrf_score) for f in fused_matches]
 
-        # 3. Apply optional similarity threshold filtering
-        filtered_results = [
-            (chunk, score)
-            for chunk, score in raw_results
-            if score >= similarity_threshold
-        ]
+        # Filter by similarity threshold if specified
+        if similarity_threshold > 0.0:
+            filtered_results = [
+                (chunk, score)
+                for chunk, score in raw_results
+                if score >= similarity_threshold
+            ]
+        else:
+            filtered_results = raw_results
 
         if not filtered_results:
             return RAGContext(
@@ -68,7 +93,7 @@ class RAGRetriever:
                 is_empty=True,
             )
 
-        # 4. Batch resolve document titles for human-friendly citations
+        # Batch resolve document titles for human-friendly citations
         doc_ids = list({chunk.document_id for chunk, _ in filtered_results})
         doc_map = await self.doc_repo.get_by_ids(doc_ids, user_id=user_id)
         document_titles = {
@@ -76,7 +101,7 @@ class RAGRetriever:
             for d_id, doc in doc_map.items()
         }
 
-        # 5. Build structured RAGContext
+        # Build structured RAGContext
         return RAGContextBuilder.build(
             chunks_with_scores=filtered_results,
             document_titles=document_titles,

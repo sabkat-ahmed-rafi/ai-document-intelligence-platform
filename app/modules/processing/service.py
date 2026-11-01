@@ -179,30 +179,90 @@ class ProcessingService:
         *,
         user_id: str,
         query: str,
+        mode: str = "hybrid",
         collection_id: str | None = None,
         document_id: str | None = None,
         limit: int = 5,
+        similarity_threshold: float = 0.0,
     ) -> list[ChunkSearchResult]:
-        if not query.strip():
+        clean_query = query.strip()
+        if not clean_query:
             raise ValidationException("Search query cannot be empty")
 
-        query_vector = await self.pipeline.vector_store.embeddings.aembed_query(query)
-        results = await self.chunk_repo.search_similar(
+        resolved_mode = mode.lower() if mode else "hybrid"
+
+        if resolved_mode == "keyword":
+            results = await self.chunk_repo.search_keywords(
+                query_text=clean_query,
+                user_id=user_id,
+                collection_id=collection_id,
+                document_id=document_id,
+                limit=limit,
+            )
+            return [
+                ChunkSearchResult(
+                    id=chunk.id,
+                    document_id=chunk.document_id,
+                    collection_id=chunk.collection_id,
+                    content=chunk.content,
+                    metadata=chunk.chunk_metadata,
+                    similarity=round(score, 4),
+                    search_mode="keyword",
+                )
+                for chunk, score in results
+            ]
+
+        if resolved_mode == "vector":
+            query_vector = await self.pipeline.vector_store.embeddings.aembed_query(clean_query)
+            results = await self.chunk_repo.search_similar(
+                query_vector=query_vector,
+                user_id=user_id,
+                collection_id=collection_id,
+                document_id=document_id,
+                limit=limit,
+            )
+            return [
+                ChunkSearchResult(
+                    id=chunk.id,
+                    document_id=chunk.document_id,
+                    collection_id=chunk.collection_id,
+                    content=chunk.content,
+                    metadata=chunk.chunk_metadata,
+                    similarity=round(score, 4),
+                    search_mode="vector",
+                )
+                for chunk, score in results
+                if score >= similarity_threshold
+            ]
+
+        # Default: Hybrid Search (Vector + BM25 via Reciprocal Rank Fusion)
+        query_vector = await self.pipeline.vector_store.embeddings.aembed_query(clean_query)
+        fused_matches = await self.chunk_repo.search_hybrid(
             query_vector=query_vector,
+            query_text=clean_query,
             user_id=user_id,
             collection_id=collection_id,
             document_id=document_id,
             limit=limit,
         )
 
-        return [
-            ChunkSearchResult(
-                id=chunk.id,
-                document_id=chunk.document_id,
-                collection_id=chunk.collection_id,
-                content=chunk.content,
-                metadata=chunk.chunk_metadata,
-                similarity=round(score, 4),
+        output: list[ChunkSearchResult] = []
+        for fused in fused_matches:
+            if similarity_threshold > 0.0 and fused.vector_similarity is not None:
+                if fused.vector_similarity < similarity_threshold:
+                    continue
+            output.append(
+                ChunkSearchResult(
+                    id=fused.chunk.id,
+                    document_id=fused.chunk.document_id,
+                    collection_id=fused.chunk.collection_id,
+                    content=fused.chunk.content,
+                    metadata=fused.chunk.chunk_metadata,
+                    similarity=fused.rrf_score,
+                    search_mode="hybrid",
+                    vector_rank=fused.vector_rank,
+                    keyword_rank=fused.keyword_rank,
+                    rrf_score=fused.rrf_score,
+                )
             )
-            for chunk, score in results
-        ]
+        return output

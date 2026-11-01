@@ -825,7 +825,7 @@
           "response": []
         },
         {
-          "name": "3. Semantic Vector Search",
+          "name": "3. Hybrid Search (Vector + BM25 RRF)",
           "request": {
             "auth": {
               "type": "bearer",
@@ -846,7 +846,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"query\": \"How much revenue did North America generate?\",\n  \"collection_id\": \"{{collection_id}}\",\n  \"limit\": 5\n}"
+              "raw": "{\n  \"query\": \"How much revenue did North America generate in Q4?\",\n  \"mode\": \"hybrid\",\n  \"collection_id\": \"{{collection_id}}\",\n  \"limit\": 5,\n  \"similarity_threshold\": 0.0\n}"
             },
             "url": {
               "raw": "{{base_url}}/documents/search",
@@ -858,7 +858,45 @@
                 "search"
               ]
             },
-            "description": "Performs cosine similarity vector search across all documents or scoped to a specific collection/document using FastEmbed vector embeddings and Supabase pgvector HNSW indexing."
+            "description": "Performs state-of-the-art Hybrid Search blending pgvector cosine similarity and PostgreSQL BM25 full-text search using Reciprocal Rank Fusion (RRF)."
+          },
+          "response": []
+        },
+        {
+          "name": "4. Full-Text Keyword Search (BM25)",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"query\": \"INV-2026-99 \\\"Clause 4.2\\\"\",\n  \"mode\": \"keyword\",\n  \"limit\": 5\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/documents/search",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "documents",
+                "search"
+              ]
+            },
+            "description": "Performs exact keyword matching using PostgreSQL full-text search (websearch_to_tsquery and ts_rank_cd). Ideal for error codes, invoice IDs, and specific legal terminology."
           },
           "response": []
         }

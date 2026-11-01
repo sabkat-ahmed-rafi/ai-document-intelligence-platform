@@ -1,6 +1,9 @@
+from typing import Any
 from pgvector.sqlalchemy import Vector
 from sqlalchemy import ForeignKey, Integer, JSON, String, Text
+from sqlalchemy.dialects.postgresql import TSVECTOR
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.schema import FetchedValue
 
 from infrastructure.database import Base, TimestampMixin
 
@@ -56,6 +59,12 @@ class DocumentChunk(TimestampMixin, Base):
 
     embedding: Mapped[list[float] | None] = mapped_column(
         Vector(384),
+        nullable=True,
+    )
+
+    fts_vector: Mapped[Any] = mapped_column(
+        TSVECTOR,
+        server_default=FetchedValue(),
         nullable=True,
     )
 

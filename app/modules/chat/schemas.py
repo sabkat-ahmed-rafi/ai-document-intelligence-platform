@@ -1,3 +1,4 @@
+from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 
@@ -79,6 +80,10 @@ class ChatQueryRequest(BaseModel):
         le=1.0,
         description="Minimum cosine similarity score required for chunks to be included",
     )
+    search_mode: Literal["hybrid", "vector", "keyword"] = Field(
+        default="hybrid",
+        description="Search algorithm: 'hybrid' (Vector + BM25 via RRF), 'vector' (cosine only), 'keyword' (BM25 only)",
+    )
     stream: bool = Field(
         False,
         description="If true, stream the generated tokens in real-time via Server-Sent Events (SSE)",
@@ -106,6 +111,10 @@ class SingleDocumentChatRequest(BaseModel):
         ge=0.0,
         le=1.0,
         description="Minimum cosine similarity score required for chunks to be included",
+    )
+    search_mode: Literal["hybrid", "vector", "keyword"] = Field(
+        default="hybrid",
+        description="Search algorithm: 'hybrid' (Vector + BM25 via RRF), 'vector' (cosine only), 'keyword' (BM25 only)",
     )
     stream: bool = Field(
         False,

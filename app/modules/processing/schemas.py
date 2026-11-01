@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 from pydantic import BaseModel, Field
 
 
@@ -31,10 +31,20 @@ class DocumentProcessingStatusResponse(BaseModel):
 
 
 class ChunkSearchRequest(BaseModel):
-    query: str = Field(..., min_length=1, description="Semantic text query to search for")
-    limit: int = Field(default=5, ge=1, le=50, description="Max number of similar chunks to retrieve")
+    query: str = Field(..., min_length=1, description="Text query to search for")
+    mode: Literal["hybrid", "vector", "keyword"] = Field(
+        default="hybrid",
+        description="Search algorithm: 'hybrid' (Vector + BM25 via RRF), 'vector' (cosine only), 'keyword' (BM25 only)",
+    )
+    limit: int = Field(default=5, ge=1, le=50, description="Max number of chunks to retrieve")
     collection_id: str | None = Field(default=None, description="Optional filter to scope search within a collection")
     document_id: str | None = Field(default=None, description="Optional filter to scope search to a single document")
+    similarity_threshold: float = Field(
+        default=0.0,
+        ge=0.0,
+        le=1.0,
+        description="Minimum score threshold (applied to vector similarity)",
+    )
 
 
 class ChunkSearchResult(BaseModel):
@@ -43,4 +53,23 @@ class ChunkSearchResult(BaseModel):
     collection_id: str | None = None
     content: str
     metadata: dict[str, Any] = Field(default_factory=dict)
-    similarity: float = Field(..., description="Cosine similarity score between 0.0 and 1.0")
+    similarity: float = Field(
+        ...,
+        description="Primary relevance score (cosine similarity for vector, BM25 rank for keyword, or RRF score for hybrid)",
+    )
+    search_mode: str = Field(
+        default="vector",
+        description="Search algorithm used to produce this result: 'hybrid', 'vector', or 'keyword'",
+    )
+    vector_rank: int | None = Field(
+        default=None,
+        description="1-indexed rank from vector search (hybrid search only)",
+    )
+    keyword_rank: int | None = Field(
+        default=None,
+        description="1-indexed rank from full-text keyword search (hybrid search only)",
+    )
+    rrf_score: float | None = Field(
+        default=None,
+        description="Blended Reciprocal Rank Fusion score (hybrid search only)",
+    )
