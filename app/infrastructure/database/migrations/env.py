@@ -24,6 +24,7 @@ from modules.auth.models.password_reset_code import PasswordResetCode  # noqa: F
 from modules.documents.models import Document  # noqa: F401
 from modules.collections.models import Collection  # noqa: F401
 from modules.processing.models import DocumentChunk  # noqa: F401
+from modules.chat.models import ChatThread, ChatMessage  # noqa: F401
 
 # Alembic Config object
 config = context.config

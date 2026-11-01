@@ -1,4 +1,4 @@
-from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 
 RAG_SYSTEM_PROMPT = """You are an expert AI Document Intelligence assistant. Your mission is to provide accurate, truthful, and well-cited answers to user questions based STRICTLY AND ONLY on the provided document excerpts below.
 
@@ -33,6 +33,11 @@ FALLBACK_NO_CONTEXT_ANSWER = (
     "I cannot find any relevant information to answer this question in the provided documents."
 )
 
+CONTEXTUALIZE_Q_SYSTEM_PROMPT = """Given a chat history and the latest user question \
+which might reference context in the chat history, formulate a standalone question \
+which can be understood without the chat history. Do NOT answer the question, \
+just reformulate it if needed and otherwise return it as is."""
+
 
 def get_rag_prompt_template() -> ChatPromptTemplate:
     """
@@ -42,6 +47,34 @@ def get_rag_prompt_template() -> ChatPromptTemplate:
     return ChatPromptTemplate.from_messages(
         [
             ("system", RAG_SYSTEM_PROMPT),
+            ("human", RAG_HUMAN_PROMPT),
+        ]
+    )
+
+
+def get_contextualize_q_prompt_template() -> ChatPromptTemplate:
+    """
+    Returns the prompt template used to reformulate follow-up conversational queries
+    into standalone search queries preserving conversation context.
+    """
+    return ChatPromptTemplate.from_messages(
+        [
+            ("system", CONTEXTUALIZE_Q_SYSTEM_PROMPT),
+            MessagesPlaceholder(variable_name="chat_history"),
+            ("human", "{question}"),
+        ]
+    )
+
+
+def get_conversational_rag_prompt_template() -> ChatPromptTemplate:
+    """
+    Returns a conversational ChatPromptTemplate incorporating prior messages
+    alongside grounded context excerpts and citation rules.
+    """
+    return ChatPromptTemplate.from_messages(
+        [
+            ("system", RAG_SYSTEM_PROMPT),
+            MessagesPlaceholder(variable_name="chat_history"),
             ("human", RAG_HUMAN_PROMPT),
         ]
     )

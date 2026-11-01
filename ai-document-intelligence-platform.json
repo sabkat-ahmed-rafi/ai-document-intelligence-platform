@@ -35,6 +35,11 @@
       "key": "document_id",
       "value": "",
       "type": "string"
+    },
+    {
+      "key": "thread_id",
+      "value": "",
+      "type": "string"
     }
   ],
   "item": [
@@ -1017,6 +1022,317 @@
               ]
             },
             "description": "Submits a question scoped strictly to a single document. Ensures that vector retrieval and grounding never search outside this document's parsed chunks."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Chat Threads & Conversational Memory",
+      "item": [
+        {
+          "name": "1. Create Chat Thread",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    var jsonData = pm.response.json();",
+                  "    if (jsonData.data && jsonData.data.id) {",
+                  "        pm.collectionVariables.set(\"thread_id\", jsonData.data.id);",
+                  "        console.log(\"Saved thread_id: \" + jsonData.data.id);",
+                  "    }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Q3 Financial Performance Analysis\",\n  \"collection_id\": \"{{collection_id}}\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/threads",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "threads"
+              ]
+            },
+            "description": "Creates a persistent conversational chat thread, optionally scoped to a collection or single document."
+          },
+          "response": []
+        },
+        {
+          "name": "2. List Chat Threads",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/threads?limit=20&offset=0",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "threads"
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "20"
+                },
+                {
+                  "key": "offset",
+                  "value": "0"
+                }
+              ]
+            },
+            "description": "Retrieves all conversation threads for the authenticated user, ordered by last activity with message counts."
+          },
+          "response": []
+        },
+        {
+          "name": "3. Get Thread Detail & History",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/threads/{{thread_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "threads",
+                "{{thread_id}}"
+              ]
+            },
+            "description": "Retrieves the full thread metadata and chronological message history."
+          },
+          "response": []
+        },
+        {
+          "name": "4. Conversational Chat in Thread (Batch)",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message\": \"What were the primary drivers behind that revenue growth?\",\n  \"search_mode\": \"hybrid\",\n  \"top_k\": 5,\n  \"similarity_threshold\": 0.0,\n  \"stream\": false\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/threads/{{thread_id}}/chat",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "threads",
+                "{{thread_id}}",
+                "chat"
+              ]
+            },
+            "description": "Submits a conversational follow-up question. The system contextualizes the query using chat history, performs hybrid search, grounds the answer, and persists both user & assistant messages."
+          },
+          "response": []
+        },
+        {
+          "name": "5. Conversational Chat in Thread (SSE Stream)",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message\": \"Can you summarize the second point in two bullet points?\",\n  \"search_mode\": \"hybrid\",\n  \"top_k\": 5,\n  \"similarity_threshold\": 0.0,\n  \"stream\": true\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/threads/{{thread_id}}/chat",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "threads",
+                "{{thread_id}}",
+                "chat"
+              ]
+            },
+            "description": "Streams real-time tokens over Server-Sent Events (SSE). Emits metadata event first, followed by word-by-word token events and a done event."
+          },
+          "response": []
+        },
+        {
+          "name": "6. Rename Chat Thread",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Renamed: Q3 Revenue & Strategic Drivers\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/threads/{{thread_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "threads",
+                "{{thread_id}}"
+              ]
+            },
+            "description": "Updates the title of a conversation thread."
+          },
+          "response": []
+        },
+        {
+          "name": "7. List Thread Messages (Paginated)",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/threads/{{thread_id}}/messages?limit=50&offset=0",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "threads",
+                "{{thread_id}}",
+                "messages"
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "50"
+                },
+                {
+                  "key": "offset",
+                  "value": "0"
+                }
+              ]
+            },
+            "description": "Fetches paginated chronological messages for a conversation thread."
+          },
+          "response": []
+        },
+        {
+          "name": "8. Delete Chat Thread",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/threads/{{thread_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "threads",
+                "{{thread_id}}"
+              ]
+            },
+            "description": "Soft-deletes a conversation thread and archives its history."
           },
           "response": []
         }

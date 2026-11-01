@@ -19,6 +19,7 @@ For comprehensive deep-dive guides on each subsystem, architectural decisions, a
 | **06** | [**Semantic Search & Frontend Integration**](./docs/06_semantic_search_and_api_guide.md) | Semantic Similarity Retrieval, Source Citations, UI Blueprints (Search Bar, Inspector, Polling) |
 | **07** | [**Pluggable LLM Layer & RAG Generation**](./docs/07_llm_and_rag_orchestration.md) | Multi-Provider LLM Factory (Groq, Gemini, Ollama, OpenAI), Zero-Cost Setup, Smart Defaults |
 | **08** | [**Hybrid Search & Reciprocal Rank Fusion (RRF)**](./docs/08_hybrid_search_and_rrf.md) | Dense Vector + Sparse BM25 Keywords, GIN Indexing, RRF Mathematical Rank Blending |
+| **09** | [**Conversational Threads & Multi-Turn Memory**](./docs/09_conversational_threads_and_memory.md) | Thread Lifecycle CRUD, Conversational Query Condensation, Grounded Follow-Up QA, Audit History |
 
 ---
 
@@ -98,6 +99,10 @@ flowchart TD
 7. **Supabase Hybrid Search & Reciprocal Rank Fusion (RRF):**
    * Blends dense pgvector cosine similarity and sparse PostgreSQL BM25 full-text search.
    * Uses GIN indexes over generated `tsvector` columns and `websearch_to_tsquery` for exact code and acronym matching.
+8. **Multi-Turn Conversational Memory & Chat Threads:**
+   * Full CRUD management for persistent chat threads scoped to users, collections, or documents.
+   * LangChain query contextualization converts ambiguous follow-up questions (*"Why?"*, *"Can you elaborate on that?"*) into standalone search queries using prior turns.
+   * Multi-turn grounded synthesis with inline `[Source N]` citations and Server-Sent Events (SSE) token streaming.
    * Uses RRF ($k=60$) to eliminate the vocabulary mismatch problem.
 
 ---
