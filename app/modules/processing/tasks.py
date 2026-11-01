@@ -17,6 +17,7 @@ from .parsers.docling_parser import DoclingDocumentParser
 from .pipeline import DocumentProcessingPipeline
 from .repository import DocumentChunkRepository
 from .service import ProcessingService
+from .summarizer.engine import DocumentSummarizer
 from .vectorstore.supabase_store import SupabaseVectorStoreAdapter
 
 logger = logging.getLogger(__name__)
@@ -53,11 +54,14 @@ async def _run_document_processing(document_id: str, user_id: str) -> dict:
             vector_store=vector_store,
         )
 
+        summarizer = DocumentSummarizer()
+
         service = ProcessingService(
             document_repository=doc_repo,
             chunk_repository=chunk_repo,
             file_service=file_service,
             pipeline=pipeline,
+            summarizer=summarizer,
         )
 
         status_res = await service.process_document(

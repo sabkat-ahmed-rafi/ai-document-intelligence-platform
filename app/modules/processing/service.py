@@ -1,8 +1,10 @@
+import logging
 import os
 import tempfile
 from pathlib import Path
 from typing import Any
 
+from core.config import settings
 from core.exceptions import NotFoundException, ValidationException
 from modules.documents.enums import DocumentStatus
 from modules.documents.repository import DocumentRepository
@@ -17,6 +19,10 @@ from .schemas import (
     DocumentChunkResponse,
     DocumentProcessingStatusResponse,
 )
+from .summarizer.engine import DocumentSummarizer
+from .summarizer.schemas import DocumentSummary, DocumentSummaryResponse
+
+logger = logging.getLogger(__name__)
 
 
 class ProcessingService:
@@ -26,11 +32,13 @@ class ProcessingService:
         chunk_repository: DocumentChunkRepository,
         file_service: FileService,
         pipeline: DocumentProcessingPipeline,
+        summarizer: DocumentSummarizer | None = None,
     ):
         self.doc_repo = document_repository
         self.chunk_repo = chunk_repository
         self.file_service = file_service
         self.pipeline = pipeline
+        self.summarizer = summarizer
 
     async def process_document(
         self,
@@ -93,12 +101,28 @@ class ProcessingService:
                 mime_type=doc.mime_type,
             )
 
-            # 6. Update document to COMPLETED
+            # 6. Automated Document Summarization & Entity Extraction (if enabled)
+            summary_dict = None
+            if settings.ENABLE_DOCUMENT_SUMMARIZATION and self.summarizer and saved_chunks:
+                try:
+                    chunk_texts = [c.content for c in saved_chunks]
+                    summary_result = await self.summarizer.summarize(chunk_texts)
+                    summary_dict = summary_result.model_dump()
+                except Exception as sum_exc:
+                    logger.error(
+                        f"Failed to generate automated summary for document {doc.id}: {sum_exc}",
+                        exc_info=True,
+                    )
+
+            # 7. Update document to COMPLETED
             doc.status = DocumentStatus.COMPLETED.value
             doc.doc_metadata = {
                 **(doc.doc_metadata or {}),
                 "processing": metrics,
             }
+            if summary_dict:
+                doc.doc_metadata["summary"] = summary_dict
+
             doc.error_message = None
             await self.doc_repo.update(doc)
 
@@ -266,3 +290,72 @@ class ProcessingService:
                 )
             )
         return output
+
+    async def get_document_summary(
+        self,
+        document_id: str,
+        user_id: str,
+    ) -> DocumentSummaryResponse:
+        """
+        Retrieves the structured executive summary and extracted entities for a document.
+        """
+        doc = await self.doc_repo.get_by_id(document_id, user_id=user_id)
+        if not doc:
+            raise NotFoundException(f"Document with id '{document_id}' not found.")
+
+        metadata = doc.doc_metadata or {}
+        summary_payload = metadata.get("summary")
+
+        if not summary_payload:
+            return DocumentSummaryResponse(
+                document_id=doc.id,
+                title=doc.title or doc.original_filename,
+                has_summary=False,
+                summary=None,
+            )
+
+        return DocumentSummaryResponse(
+            document_id=doc.id,
+            title=doc.title or doc.original_filename,
+            has_summary=True,
+            summary=DocumentSummary.model_validate(summary_payload),
+        )
+
+    async def summarize_document(
+        self,
+        document_id: str,
+        user_id: str,
+    ) -> DocumentSummaryResponse:
+        """
+        Generates or regenerates an executive summary and extracted entities on-demand
+        using existing document chunks, persisting the result to doc_metadata.
+        """
+        if not self.summarizer:
+            raise ValidationException("Document summarization engine is not configured.")
+
+        doc = await self.doc_repo.get_by_id(document_id, user_id=user_id)
+        if not doc:
+            raise NotFoundException(f"Document with id '{document_id}' not found.")
+
+        chunks = await self.chunk_repo.get_all_by_document_id(doc.id)
+        if not chunks:
+            raise ValidationException(
+                "Document has no processed chunks to summarize. Please process the document first."
+            )
+
+        chunk_texts = [c.content for c in chunks]
+        summary_result = await self.summarizer.summarize(chunk_texts)
+        summary_dict = summary_result.model_dump()
+
+        doc.doc_metadata = {
+            **(doc.doc_metadata or {}),
+            "summary": summary_dict,
+        }
+        await self.doc_repo.update(doc)
+
+        return DocumentSummaryResponse(
+            document_id=doc.id,
+            title=doc.title or doc.original_filename,
+            has_summary=True,
+            summary=summary_result,
+        )

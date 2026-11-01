@@ -19,6 +19,7 @@ This documentation is structured into dedicated, modular deep-dive guides. Each 
 | **07** | [**Pluggable LLM Layer & RAG Generation**](./07_llm_and_rag_orchestration.md) | Multi-Provider LLM Factory (Groq, Gemini, Ollama, OpenAI), Zero-Cost Setup, Smart Defaults |
 | **08** | [**Hybrid Search & Reciprocal Rank Fusion (RRF)**](./08_hybrid_search_and_rrf.md) | Dense Vector + Sparse BM25 Keywords, GIN Indexing, RRF Mathematical Rank Blending |
 | **09** | [**Conversational Threads & Multi-Turn Memory**](./09_conversational_threads_and_memory.md) | Thread CRUD, LangChain Conversational Condensation, Grounded Follow-Up QA, Persistent History |
+| **10** | [**Document Summarization & Entity Extraction**](./10_document_summarization_and_entity_extraction.md) | Background Celery Execution, Strategic Chunk Sampling, Executive Summaries, Entity Catalogs |
 
 ---
 
@@ -75,6 +76,7 @@ flowchart TD
 | **RAG & Document Chat** | LangChain LCEL, Groq / Gemini / Ollama / OpenAI, SSE | **Grounded Synthesis & Inline Citations:** Uses strict anti-hallucination prompt templates, fast-exit empty context guard, and real-time Server-Sent Events token streaming with structured page/chunk citations. | [07_llm_and_rag_orchestration.md](./07_llm_and_rag_orchestration.md) |
 | **Hybrid Search (RRF)** | PostgreSQL `tsvector`, GIN Index, Reciprocal Rank Fusion | **Dual-Signal Retrieval:** Blends vector semantic proximity and BM25 exact keyword matching using RRF ($k=60$), eliminating vocabulary mismatch on codes, acronyms, and legal clauses. | [08_hybrid_search_and_rrf.md](./08_hybrid_search_and_rrf.md) |
 | **Conversational Memory** | PostgreSQL `chat_threads` & `chat_messages`, LangChain LCEL | **Multi-Turn Contextual Reformulation:** Dynamically reformulates follow-up queries using sliding memory ($N=10$) into standalone search queries, executes hybrid search, and persists audit trails with citations. | [09_conversational_threads_and_memory.md](./09_conversational_threads_and_memory.md) |
+| **Document Summarization** | Celery 5.6, LangChain Structured Output, Pluggable LLM | **Automated Executive Synthesis & Entity Extraction:** Generates 2-3 paragraph executive summaries, key highlights, and extracts structured entities (parties, dates, financials, doc types, topics) during Celery ingestion and on-demand REST APIs. | [10_document_summarization_and_entity_extraction.md](./10_document_summarization_and_entity_extraction.md) |
 
 ---
 

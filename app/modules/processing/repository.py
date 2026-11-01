@@ -42,6 +42,16 @@ class DocumentChunkRepository:
         result = await self.db.execute(stmt)
         return list(result.scalars().all()), total
 
+    async def get_all_by_document_id(self, document_id: str) -> list[DocumentChunk]:
+        """Fetches all chunks for a document ordered chronologically by chunk_index."""
+        stmt = (
+            select(DocumentChunk)
+            .where(DocumentChunk.document_id == document_id)
+            .order_by(DocumentChunk.chunk_index.asc())
+        )
+        result = await self.db.execute(stmt)
+        return list(result.scalars().all())
+
     async def search_similar(
         self,
         query_vector: list[float],

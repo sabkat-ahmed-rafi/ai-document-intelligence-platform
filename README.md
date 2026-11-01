@@ -20,6 +20,7 @@ For comprehensive deep-dive guides on each subsystem, architectural decisions, a
 | **07** | [**Pluggable LLM Layer & RAG Generation**](./docs/07_llm_and_rag_orchestration.md) | Multi-Provider LLM Factory (Groq, Gemini, Ollama, OpenAI), Zero-Cost Setup, Smart Defaults |
 | **08** | [**Hybrid Search & Reciprocal Rank Fusion (RRF)**](./docs/08_hybrid_search_and_rrf.md) | Dense Vector + Sparse BM25 Keywords, GIN Indexing, RRF Mathematical Rank Blending |
 | **09** | [**Conversational Threads & Multi-Turn Memory**](./docs/09_conversational_threads_and_memory.md) | Thread Lifecycle CRUD, Conversational Query Condensation, Grounded Follow-Up QA, Audit History |
+| **10** | [**Document Summarization & Entity Extraction**](./docs/10_document_summarization_and_entity_extraction.md) | Background Celery Execution, Strategic Chunk Sampling, Executive Summaries, Entity Catalogs |
 
 ---
 
@@ -104,6 +105,11 @@ flowchart TD
    * LangChain query contextualization converts ambiguous follow-up questions (*"Why?"*, *"Can you elaborate on that?"*) into standalone search queries using prior turns.
    * Multi-turn grounded synthesis with inline `[Source N]` citations and Server-Sent Events (SSE) token streaming.
    * Uses RRF ($k=60$) to eliminate the vocabulary mismatch problem.
+9. **Automated Document Summarization & Entity Extraction (in Celery):**
+   * Autonomous executive synthesis running inside distributed Celery background workers.
+   * Strategic chunk sampling captures preamble, operational clauses, and execution blocks within bounded token limits.
+   * Extracts structured entity catalog (parties, effective dates, monetary values, classification, topical tags) persisted in `Document.doc_metadata["summary"]`.
+   * On-demand REST APIs for immediate summary retrieval (`GET /documents/{id}/summary`) and manual re-summarization (`POST /documents/{id}/summarize`).
 
 ---
 

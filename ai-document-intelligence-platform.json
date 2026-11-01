@@ -904,6 +904,66 @@
             "description": "Performs exact keyword matching using PostgreSQL full-text search (websearch_to_tsquery and ts_rank_cd). Ideal for error codes, invoice IDs, and specific legal terminology."
           },
           "response": []
+        },
+        {
+          "name": "5. Get Document Summary & Entities",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/documents/{{document_id}}/summary",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "documents",
+                "{{document_id}}",
+                "summary"
+              ]
+            },
+            "description": "Retrieves the pre-generated executive summary and extracted structured entity catalog (parties, key dates, financial values, document classification, and topics) from the document's metadata."
+          },
+          "response": []
+        },
+        {
+          "name": "6. Generate Document Summary (On-Demand)",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/documents/{{document_id}}/summarize",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "documents",
+                "{{document_id}}",
+                "summarize"
+              ]
+            },
+            "description": "Triggers on-demand executive summarization and entity extraction across all parsed chunks of this document, saving the results to document metadata."
+          },
+          "response": []
         }
       ]
     },

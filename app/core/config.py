@@ -54,6 +54,9 @@ class Settings(BaseSettings):
     LLM_TEMPERATURE: float = 0.1
     LLM_MAX_TOKENS: int = 2048
 
+    # Document Summarization & Entity Extraction Configuration
+    ENABLE_DOCUMENT_SUMMARIZATION: bool = True
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

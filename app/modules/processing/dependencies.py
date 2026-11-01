@@ -13,7 +13,12 @@ from .parsers.docling_parser import DoclingDocumentParser
 from .pipeline import DocumentProcessingPipeline
 from .repository import DocumentChunkRepository
 from .service import ProcessingService
+from .summarizer.engine import DocumentSummarizer
 from .vectorstore.supabase_store import SupabaseVectorStoreAdapter
+
+
+def get_document_summarizer() -> DocumentSummarizer:
+    return DocumentSummarizer()
 
 
 def get_chunk_repository(
@@ -44,10 +49,12 @@ def get_processing_service(
     chunk_repository: DocumentChunkRepository = Depends(get_chunk_repository),
     file_service: FileService = Depends(get_file_service),
     pipeline: DocumentProcessingPipeline = Depends(get_processing_pipeline),
+    summarizer: DocumentSummarizer = Depends(get_document_summarizer),
 ) -> ProcessingService:
     return ProcessingService(
         document_repository=document_repository,
         chunk_repository=chunk_repository,
         file_service=file_service,
         pipeline=pipeline,
+        summarizer=summarizer,
     )

@@ -2,6 +2,12 @@ from datetime import datetime
 from typing import Any, Literal
 from pydantic import BaseModel, Field
 
+from .summarizer.schemas import (
+    DocumentSummary,
+    DocumentSummaryResponse,
+    ExtractedEntities,
+)
+
 
 class DocumentChunkResponse(BaseModel):
     id: str
