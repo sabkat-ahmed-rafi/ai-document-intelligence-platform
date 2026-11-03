@@ -154,17 +154,17 @@ docker run -d -p 6379:6379 --name redis redis:7-alpine
 
 #### Terminal 2: Start the FastAPI Web Server
 ```bash
-uv run uvicorn app.main:app --reload --port 8000
+uv run uvicorn main:app --reload --app-dir app --port 8000
 ```
 
 #### Terminal 3: Start the Celery Worker Process
 * **On Windows:**
   ```bash
-  uv run celery -A core.celery_app.celery_app worker --loglevel=info -P solo
+  uv run celery -A core.celery_app.celery_app worker --workdir app --loglevel=info -P solo
   ```
 * **On Linux / Docker:**
   ```bash
-  uv run celery -A core.celery_app.celery_app worker --loglevel=info --concurrency=4 -E
+  uv run celery -A core.celery_app.celery_app worker --workdir app --loglevel=info --concurrency=4 -E
   ```
 
 ---

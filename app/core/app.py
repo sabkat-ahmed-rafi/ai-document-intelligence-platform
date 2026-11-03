@@ -1,5 +1,6 @@
 from pathlib import Path
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import text
 
@@ -22,6 +23,15 @@ def create_app() -> FastAPI:
     )
 
     register_exception_handler(app)
+
+    # Configure CORS for Frontend Integration
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=settings.CORS_ORIGINS,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 
     # Mount static files directory for local storage provider fallback
     if settings.STORAGE_PROVIDER == "local":
