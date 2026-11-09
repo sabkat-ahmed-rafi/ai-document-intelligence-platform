@@ -26,6 +26,7 @@ class Settings(BaseSettings):
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
     API_KEY: str = "test-api-key"
     COOKIE_SECURE: bool = False  # False for local HTTP development; set to True in production HTTPS
+    COOKIE_SAMESITE: str = "lax"  # "lax", "strict", or "none"
 
     # Email configuration (Google SMTP)
     SMTP_HOST: str = "smtp.gmail.com"

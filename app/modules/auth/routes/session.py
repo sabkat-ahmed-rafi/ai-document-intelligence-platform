@@ -34,7 +34,7 @@ async def login(
         value=result.token.access_token,
         httponly=True,
         secure=settings.COOKIE_SECURE,
-        samesite="lax",
+        samesite=settings.COOKIE_SAMESITE,
         max_age=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
     )
     response.set_cookie(
@@ -42,7 +42,7 @@ async def login(
         value=result.token.refresh_token,
         httponly=True,
         secure=settings.COOKIE_SECURE,
-        samesite="strict",
+        samesite=settings.COOKIE_SAMESITE,
         max_age=settings.REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60,
     )
     # Returns tokens in body as well for mobile apps / SPA state
@@ -66,7 +66,7 @@ async def refresh_access_token(
         value=access_token.access_token,
         httponly=True,
         secure=settings.COOKIE_SECURE,
-        samesite="lax",
+        samesite=settings.COOKIE_SAMESITE,
         max_age=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
     )
     return ApiResponse(
@@ -87,13 +87,13 @@ async def logout(
         key="access_token",
         httponly=True,
         secure=settings.COOKIE_SECURE,
-        samesite="lax",
+        samesite=settings.COOKIE_SAMESITE,
     )
     response.delete_cookie(
         key="refresh_token",
         httponly=True,
         secure=settings.COOKIE_SECURE,
-        samesite="strict",
+        samesite=settings.COOKIE_SAMESITE,
     )
     return ApiResponse(
         message="Logout successful",

@@ -60,13 +60,13 @@ async def reset_password(
         key="access_token",
         httponly=True,
         secure=settings.COOKIE_SECURE,
-        samesite="lax",
+        samesite=settings.COOKIE_SAMESITE,
     )
     response.delete_cookie(
         key="refresh_token",
         httponly=True,
         secure=settings.COOKIE_SECURE,
-        samesite="strict",
+        samesite=settings.COOKIE_SAMESITE,
     )
     return ApiResponse(
         message="Password reset successfully. All sessions have been terminated. Please log in with your new password.",
