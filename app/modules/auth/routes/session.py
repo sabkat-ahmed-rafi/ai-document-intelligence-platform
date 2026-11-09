@@ -33,7 +33,7 @@ async def login(
         key="access_token",
         value=result.token.access_token,
         httponly=True,
-        secure=not settings.DEBUG,
+        secure=settings.COOKIE_SECURE,
         samesite="lax",
         max_age=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
     )
@@ -41,7 +41,7 @@ async def login(
         key="refresh_token",
         value=result.token.refresh_token,
         httponly=True,
-        secure=not settings.DEBUG,
+        secure=settings.COOKIE_SECURE,
         samesite="strict",
         max_age=settings.REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60,
     )
@@ -65,7 +65,7 @@ async def refresh_access_token(
         key="access_token",
         value=access_token.access_token,
         httponly=True,
-        secure=not settings.DEBUG,
+        secure=settings.COOKIE_SECURE,
         samesite="lax",
         max_age=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
     )
@@ -86,13 +86,13 @@ async def logout(
     response.delete_cookie(
         key="access_token",
         httponly=True,
-        secure=not settings.DEBUG,
+        secure=settings.COOKIE_SECURE,
         samesite="lax",
     )
     response.delete_cookie(
         key="refresh_token",
         httponly=True,
-        secure=not settings.DEBUG,
+        secure=settings.COOKIE_SECURE,
         samesite="strict",
     )
     return ApiResponse(

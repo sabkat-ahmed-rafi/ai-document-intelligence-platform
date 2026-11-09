@@ -59,13 +59,13 @@ async def reset_password(
     response.delete_cookie(
         key="access_token",
         httponly=True,
-        secure=not settings.DEBUG,
+        secure=settings.COOKIE_SECURE,
         samesite="lax",
     )
     response.delete_cookie(
         key="refresh_token",
         httponly=True,
-        secure=not settings.DEBUG,
+        secure=settings.COOKIE_SECURE,
         samesite="strict",
     )
     return ApiResponse(
