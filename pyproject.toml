@@ -9,6 +9,8 @@ dependencies = [
     "asyncpg>=0.29.0",
     "bcrypt>=4.0.0",
     "celery>=5.4.0",
+    "docling>=2.150.1",
+    "docling-parse>=7.26.0",
     "fastapi[standard]>=0.143.0",
     "fastembed>=0.9.0",
     "langchain-community>=0.4.0",
@@ -22,4 +24,6 @@ dependencies = [
     "redis>=5.0.0",
     "sqlalchemy[asyncio]>=2.0.0",
     "supabase>=2.33.0",
+    "torch>=2.0.0",
+    "torchvision>=0.29.2",
 ]
