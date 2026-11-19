@@ -12,6 +12,7 @@ from modules.processing.repository import DocumentChunkRepository
 from .repository import ChatMessageRepository, ChatThreadRepository
 from .retriever import RAGRetriever
 from .service import ChatService
+from .thread_service import ThreadService
 
 
 def get_thread_repository(
@@ -26,6 +27,14 @@ def get_message_repository(
 ) -> ChatMessageRepository:
     """Provides an active ChatMessageRepository."""
     return ChatMessageRepository(session=session)
+
+
+def get_thread_service(
+    thread_repo: ChatThreadRepository = Depends(get_thread_repository),
+    msg_repo: ChatMessageRepository = Depends(get_message_repository),
+) -> ThreadService:
+    """Provides a dedicated ThreadService for thread & message CRUD operations."""
+    return ThreadService(thread_repository=thread_repo, message_repository=msg_repo)
 
 
 def get_rag_retriever(

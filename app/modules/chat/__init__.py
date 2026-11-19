@@ -4,6 +4,7 @@ from .dependencies import (
     get_message_repository,
     get_rag_retriever,
     get_thread_repository,
+    get_thread_service,
 )
 from .models import ChatMessage, ChatThread
 from .prompts import (
@@ -33,11 +34,17 @@ from .schemas import (
     ThreadUpdateRequest,
 )
 from .service import ChatService
+from .thread_service import ThreadService
 
 __all__ = [
     # Routers
     "chat_router",
     "threads_router",
+    # Services & Dependencies
+    "ChatService",
+    "ThreadService",
+    "get_chat_service",
+    "get_thread_service",
     # Models
     "ChatThread",
     "ChatMessage",

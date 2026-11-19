@@ -1,6 +1,7 @@
+import logging
 import uuid
 from datetime import datetime, timezone
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 from fastapi import UploadFile
 
 from core.exceptions import NotFoundException, ValidationException
@@ -21,6 +22,9 @@ from .schemas import (
 
 if TYPE_CHECKING:
     from modules.collections.service import CollectionService
+    from modules.processing.repository import DocumentChunkRepository
+
+logger = logging.getLogger(__name__)
 
 
 class DocumentService:
@@ -29,10 +33,12 @@ class DocumentService:
         repository: DocumentRepository,
         file_service: FileService,
         collection_service: "CollectionService | None" = None,
+        chunk_repository: "DocumentChunkRepository | None" = None,
     ):
         self.repository = repository
         self.file_service = file_service
         self.collection_service = collection_service
+        self.chunk_repository = chunk_repository
 
     async def upload_document(
         self,
@@ -270,3 +276,35 @@ class DocumentService:
             for d in docs
         ]
         return DocumentListResponse(documents=items, total=total)
+
+    async def delete_document(
+        self,
+        document_id: str,
+        user_id: str,
+    ) -> None:
+        """
+        Deletes a document:
+        1. Soft-deletes the document record in PostgreSQL.
+        2. Purges vector chunks and embeddings from Supabase pgvector.
+        3. Removes binary file from cloud/local storage.
+        """
+        doc = await self.repository.get_by_id(document_id, user_id=user_id)
+        if not doc:
+            raise NotFoundException("Document not found")
+
+        # 1. Soft-delete document in database
+        await self.repository.soft_delete(doc)
+
+        # 2. Clean up associated vector chunks in pgvector
+        if self.chunk_repository:
+            try:
+                await self.chunk_repository.delete_by_document_id(document_id)
+            except Exception as e:
+                logger.warning(f"Failed to delete chunks for document {document_id}: {e}")
+
+        # 3. Clean up storage file
+        if doc.file_id:
+            try:
+                await self.file_service.delete(doc.file_id)
+            except Exception as e:
+                logger.warning(f"Failed to delete storage file {doc.file_id}: {e}")

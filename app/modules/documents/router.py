@@ -142,3 +142,30 @@ async def list_documents(
         message="Documents retrieved successfully",
         data=result,
     )
+
+
+@router.delete(
+    "/{document_id}",
+    response_model=ApiResponse[dict],
+    status_code=status.HTTP_200_OK,
+    summary="Delete a document, its vector chunks, and underlying storage file",
+)
+async def delete_document(
+    document_id: str,
+    current_user: Users = Depends(get_current_active_user),
+    document_service: DocumentService = Depends(get_document_service),
+):
+    """
+    Deletes a document:
+    - Purges all parsed text chunks & vector embeddings from pgvector
+    - Deletes binary file from cloud storage
+    - Soft-deletes document record in database
+    """
+    await document_service.delete_document(
+        document_id=document_id,
+        user_id=current_user.id,
+    )
+    return ApiResponse(
+        message="Document deleted successfully",
+        data={"document_id": document_id},
+    )

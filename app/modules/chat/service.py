@@ -27,9 +27,10 @@ from .schemas import (
     ChatQueryResponse,
     ThreadChatResponse,
 )
+from .thread_service import ThreadService
 
 
-class ChatService:
+class ChatService(ThreadService):
     """
     RAG Orchestration & Conversational Memory Service.
     Coordinates:
@@ -38,6 +39,7 @@ class ChatService:
     3. Contextual query reformulation using chat history.
     4. Conversational RAG synthesis incorporating prior conversation turns.
     5. Real-time token streaming via Server-Sent Events (SSE).
+    Inherits thread and message CRUD from ThreadService.
     """
 
     def __init__(
@@ -49,10 +51,14 @@ class ChatService:
         prompt_template: ChatPromptTemplate | None = None,
         output_parser: StrOutputParser | None = None,
     ):
+        if thread_repo and msg_repo:
+            super().__init__(thread_repository=thread_repo, message_repository=msg_repo)
+        else:
+            self.thread_repo = thread_repo
+            self.msg_repo = msg_repo
+
         self.retriever = retriever
         self.llm = llm
-        self.thread_repo = thread_repo
-        self.msg_repo = msg_repo
         self.prompt_template = prompt_template or get_rag_prompt_template()
         self.output_parser = output_parser or StrOutputParser()
 
@@ -215,111 +221,6 @@ class ChatService:
             "event": "done",
             "data": {"execution_time_ms": execution_time_ms},
         }
-
-    # =========================================================================
-    # Thread Management CRUD
-    # =========================================================================
-
-    async def create_thread(
-        self,
-        *,
-        user_id: str,
-        title: str = "New Conversation",
-        collection_id: str | None = None,
-        document_id: str | None = None,
-    ) -> ChatThread:
-        if not self.thread_repo:
-            raise AppException("ChatThreadRepository is not configured")
-
-        clean_title = title.strip() if title else "New Conversation"
-        now = datetime.now(timezone.utc)
-        thread = ChatThread(
-            id=str(uuid.uuid4()),
-            user_id=user_id,
-            title=clean_title,
-            collection_id=collection_id,
-            document_id=document_id,
-            created_at=now,
-            updated_at=now,
-        )
-        return await self.thread_repo.create(thread)
-
-    async def get_thread(
-        self,
-        thread_id: str,
-        user_id: str,
-        include_messages: bool = True,
-    ) -> ChatThread:
-        if not self.thread_repo:
-            raise AppException("ChatThreadRepository is not configured")
-
-        thread = await self.thread_repo.get_by_id(
-            thread_id=thread_id,
-            user_id=user_id,
-            include_messages=include_messages,
-        )
-        if not thread:
-            raise NotFoundException(f"Chat thread '{thread_id}' not found")
-        return thread
-
-    async def list_threads(
-        self,
-        *,
-        user_id: str,
-        limit: int = 50,
-        offset: int = 0,
-    ) -> tuple[list[tuple[ChatThread, int]], int]:
-        if not self.thread_repo:
-            raise AppException("ChatThreadRepository is not configured")
-
-        return await self.thread_repo.list_for_user(
-            user_id=user_id,
-            limit=limit,
-            offset=offset,
-        )
-
-    async def update_thread_title(
-        self,
-        *,
-        thread_id: str,
-        user_id: str,
-        title: str,
-    ) -> ChatThread:
-        clean_title = title.strip()
-        if not clean_title:
-            raise ValidationException("Thread title cannot be empty")
-
-        thread = await self.get_thread(thread_id, user_id=user_id, include_messages=False)
-        thread.title = clean_title
-        return await self.thread_repo.update(thread)
-
-    async def delete_thread(
-        self,
-        *,
-        thread_id: str,
-        user_id: str,
-    ) -> None:
-        thread = await self.get_thread(thread_id, user_id=user_id, include_messages=False)
-        await self.thread_repo.soft_delete(thread)
-
-    async def list_thread_messages(
-        self,
-        *,
-        thread_id: str,
-        user_id: str,
-        limit: int = 50,
-        offset: int = 0,
-    ) -> tuple[Sequence[ChatMessage], int]:
-        if not self.msg_repo:
-            raise AppException("ChatMessageRepository is not configured")
-
-        # Verify thread access
-        await self.get_thread(thread_id, user_id=user_id, include_messages=False)
-        return await self.msg_repo.list_for_thread(
-            thread_id=thread_id,
-            limit=limit,
-            offset=offset,
-        )
 
     # =========================================================================
     # Multi-Turn Conversational Memory & RAG Execution

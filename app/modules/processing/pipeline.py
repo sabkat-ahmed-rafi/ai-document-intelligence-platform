@@ -3,6 +3,7 @@ from pathlib import Path
 from langchain_core.documents import Document as LCDocument
 
 from core.config import settings
+from infrastructure.redis.notifier import DocumentProgressNotifier
 from .chunkers.base import BaseChunker
 from .models import DocumentChunk
 from .parsers.base import BaseDocumentParser
@@ -35,6 +36,7 @@ class DocumentProcessingPipeline:
         collection_id: str | None = None,
         original_filename: str | None = None,
         mime_type: str | None = None,
+        notifier: DocumentProgressNotifier | None = None,
     ) -> tuple[list[DocumentChunk], dict]:
         """
         Executes end-to-end processing:
@@ -46,6 +48,15 @@ class DocumentProcessingPipeline:
         start_time = time.perf_counter()
 
         # Step 1: Parse using Docling
+        if notifier:
+            await notifier.notify(
+                document_id=document_id,
+                user_id=user_id,
+                status="processing",
+                stage="parsing",
+                progress=30,
+                message="Parsing document structure and tables with Docling...",
+            )
         parse_start = time.perf_counter()
         raw_docs: list[LCDocument] = await self.parser.parse(
             file_path,
@@ -55,6 +66,15 @@ class DocumentProcessingPipeline:
         parse_duration = time.perf_counter() - parse_start
 
         # Step 2: Layout-aware chunking
+        if notifier:
+            await notifier.notify(
+                document_id=document_id,
+                user_id=user_id,
+                status="processing",
+                stage="chunking",
+                progress=55,
+                message="Chunking document layout and preserving tables...",
+            )
         chunk_start = time.perf_counter()
         chunks: list[LCDocument] = self.chunker.chunk(
             raw_docs,
@@ -64,6 +84,16 @@ class DocumentProcessingPipeline:
         chunk_duration = time.perf_counter() - chunk_start
 
         # Step 3: Embed and store in Supabase pgvector
+        if notifier:
+            await notifier.notify(
+                document_id=document_id,
+                user_id=user_id,
+                status="processing",
+                stage="embedding",
+                progress=75,
+                message=f"Generating dense vector embeddings for {len(chunks)} chunks...",
+                total_chunks=len(chunks),
+            )
         embed_start = time.perf_counter()
         saved_chunks = await self.vector_store.add_documents(
             documents=chunks,

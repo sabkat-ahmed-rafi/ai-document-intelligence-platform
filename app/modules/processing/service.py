@@ -6,6 +6,7 @@ from typing import Any
 
 from core.config import settings
 from core.exceptions import NotFoundException, ValidationException
+from infrastructure.redis.notifier import DocumentProgressNotifier
 from modules.documents.enums import DocumentStatus
 from modules.documents.repository import DocumentRepository
 from modules.files.service import FileService
@@ -33,12 +34,14 @@ class ProcessingService:
         file_service: FileService,
         pipeline: DocumentProcessingPipeline,
         summarizer: DocumentSummarizer | None = None,
+        notifier: DocumentProgressNotifier | None = None,
     ):
         self.doc_repo = document_repository
         self.chunk_repo = chunk_repository
         self.file_service = file_service
         self.pipeline = pipeline
         self.summarizer = summarizer
+        self.notifier = notifier or DocumentProgressNotifier()
 
     async def process_document(
         self,
@@ -59,6 +62,15 @@ class ProcessingService:
         doc.status = DocumentStatus.PROCESSING.value
         doc.error_message = None
         await self.doc_repo.update(doc)
+
+        await self.notifier.notify(
+            document_id=doc.id,
+            user_id=user_id,
+            status="processing",
+            stage="downloading",
+            progress=15,
+            message="Fetching document file from storage...",
+        )
 
         # 3. Clean up any previous chunks if re-processing
         await self.chunk_repo.delete_by_document_id(doc.id)
@@ -99,12 +111,22 @@ class ProcessingService:
                 collection_id=doc.collection_id,
                 original_filename=doc.original_filename,
                 mime_type=doc.mime_type,
+                notifier=self.notifier,
             )
 
             # 6. Automated Document Summarization & Entity Extraction (if enabled)
             summary_dict = None
             if settings.ENABLE_DOCUMENT_SUMMARIZATION and self.summarizer and saved_chunks:
                 try:
+                    await self.notifier.notify(
+                        document_id=doc.id,
+                        user_id=user_id,
+                        status="processing",
+                        stage="summarizing",
+                        progress=90,
+                        message="Generating automated executive summary and key entities...",
+                        total_chunks=len(saved_chunks),
+                    )
                     chunk_texts = [c.content for c in saved_chunks]
                     summary_result = await self.summarizer.summarize(chunk_texts)
                     summary_dict = summary_result.model_dump()
@@ -126,6 +148,17 @@ class ProcessingService:
             doc.error_message = None
             await self.doc_repo.update(doc)
 
+            await self.notifier.notify(
+                document_id=doc.id,
+                user_id=user_id,
+                status="completed",
+                stage="completed",
+                progress=100,
+                message="Document processing completed successfully.",
+                total_chunks=len(saved_chunks),
+                metadata={"total_chunks": len(saved_chunks), "summary": summary_dict},
+            )
+
             return DocumentProcessingStatusResponse(
                 document_id=doc.id,
                 status=doc.status,
@@ -141,6 +174,19 @@ class ProcessingService:
             doc.status = DocumentStatus.FAILED.value
             doc.error_message = error_text
             await self.doc_repo.update(doc)
+
+            try:
+                await self.notifier.notify(
+                    document_id=doc.id,
+                    user_id=user_id,
+                    status="failed",
+                    stage="failed",
+                    progress=100,
+                    message=f"Document processing failed: {error_text}",
+                    error_message=error_text,
+                )
+            except Exception as notify_err:
+                logger.warning(f"Failed to publish failure notification: {notify_err}")
 
             return DocumentProcessingStatusResponse(
                 document_id=doc.id,
@@ -209,87 +255,21 @@ class ProcessingService:
         limit: int = 5,
         similarity_threshold: float = 0.0,
     ) -> list[ChunkSearchResult]:
-        clean_query = query.strip()
-        if not clean_query:
-            raise ValidationException("Search query cannot be empty")
+        from .search.service import ChunkSearchService
 
-        resolved_mode = mode.lower() if mode else "hybrid"
-
-        if resolved_mode == "keyword":
-            results = await self.chunk_repo.search_keywords(
-                query_text=clean_query,
-                user_id=user_id,
-                collection_id=collection_id,
-                document_id=document_id,
-                limit=limit,
-            )
-            return [
-                ChunkSearchResult(
-                    id=chunk.id,
-                    document_id=chunk.document_id,
-                    collection_id=chunk.collection_id,
-                    content=chunk.content,
-                    metadata=chunk.chunk_metadata,
-                    similarity=round(score, 4),
-                    search_mode="keyword",
-                )
-                for chunk, score in results
-            ]
-
-        if resolved_mode == "vector":
-            query_vector = await self.pipeline.vector_store.embeddings.aembed_query(clean_query)
-            results = await self.chunk_repo.search_similar(
-                query_vector=query_vector,
-                user_id=user_id,
-                collection_id=collection_id,
-                document_id=document_id,
-                limit=limit,
-            )
-            return [
-                ChunkSearchResult(
-                    id=chunk.id,
-                    document_id=chunk.document_id,
-                    collection_id=chunk.collection_id,
-                    content=chunk.content,
-                    metadata=chunk.chunk_metadata,
-                    similarity=round(score, 4),
-                    search_mode="vector",
-                )
-                for chunk, score in results
-                if score >= similarity_threshold
-            ]
-
-        # Default: Hybrid Search (Vector + BM25 via Reciprocal Rank Fusion)
-        query_vector = await self.pipeline.vector_store.embeddings.aembed_query(clean_query)
-        fused_matches = await self.chunk_repo.search_hybrid(
-            query_vector=query_vector,
-            query_text=clean_query,
+        search_service = ChunkSearchService(
+            chunk_repository=self.chunk_repo,
+            embeddings=self.pipeline.vector_store.embeddings,
+        )
+        return await search_service.search(
             user_id=user_id,
+            query=query,
+            mode=mode,
             collection_id=collection_id,
             document_id=document_id,
             limit=limit,
+            similarity_threshold=similarity_threshold,
         )
-
-        output: list[ChunkSearchResult] = []
-        for fused in fused_matches:
-            if similarity_threshold > 0.0 and fused.vector_similarity is not None:
-                if fused.vector_similarity < similarity_threshold:
-                    continue
-            output.append(
-                ChunkSearchResult(
-                    id=fused.chunk.id,
-                    document_id=fused.chunk.document_id,
-                    collection_id=fused.chunk.collection_id,
-                    content=fused.chunk.content,
-                    metadata=fused.chunk.chunk_metadata,
-                    similarity=fused.rrf_score,
-                    search_mode="hybrid",
-                    vector_rank=fused.vector_rank,
-                    keyword_rank=fused.keyword_rank,
-                    rrf_score=fused.rrf_score,
-                )
-            )
-        return output
 
     async def get_document_summary(
         self,
